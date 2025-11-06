@@ -1,9 +1,9 @@
-package com.ershi.aspider.crawler.processor;
+package com.ershi.aspider.datasource.processor;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.fastjson2.JSONArray;
-import com.ershi.aspider.crawler.entity.NewsItem;
+import com.ershi.aspider.datasource.entity.NewsItem;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;

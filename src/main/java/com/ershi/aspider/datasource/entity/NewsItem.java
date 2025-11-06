@@ -1,9 +1,9 @@
-package com.ershi.aspider.crawler.entity;
+package com.ershi.aspider.datasource.entity;
 
 import java.time.LocalDateTime;
 
 /**
- * 东方财富-板块聚焦新闻实体类
+ * 数据新闻实体类
  *
  * @author ershi
  */

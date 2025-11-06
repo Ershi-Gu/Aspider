@@ -54,6 +54,12 @@
             <version>4.5.14</version>
         </dependency>
 
+        <!-- ES9.2 -->
+        <dependency>
+            <groupId>co.elastic.clients</groupId>
+            <artifactId>elasticsearch-java</artifactId>
+            <version>9.2.0</version>
+        </dependency>
     </dependencies>
 
     <build>
