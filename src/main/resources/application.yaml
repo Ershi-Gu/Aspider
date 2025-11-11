@@ -1,9 +1,19 @@
+# Spring Boot应用配置
 spring:
   application:
     name: ASpider
   profiles:
     active: dev
 
+# Elasticsearch配置
 elasticsearch:
   host: xxx
   port: xxx
+
+# 日志配置
+logging:
+  level:
+    root: INFO # 全局日志级别
+    com.ershi.aspider: DEBUG # 指定包日志级别
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
