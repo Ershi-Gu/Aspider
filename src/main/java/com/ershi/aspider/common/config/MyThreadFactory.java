@@ -1,6 +1,6 @@
-package com.ershi.aspider.config;
+package com.ershi.aspider.common.config;
 
-import com.ershi.aspider.exception.GlobalThreadUncaughtExceptionHandler;
+import com.ershi.aspider.common.exception.GlobalThreadUncaughtExceptionHandler;
 import lombok.AllArgsConstructor;
 
 import java.util.concurrent.ThreadFactory;

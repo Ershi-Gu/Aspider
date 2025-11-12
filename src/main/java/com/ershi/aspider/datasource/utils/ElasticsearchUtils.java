@@ -1,4 +1,4 @@
-package com.ershi.aspider.utils;
+package com.ershi.aspider.datasource.utils;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.Result;

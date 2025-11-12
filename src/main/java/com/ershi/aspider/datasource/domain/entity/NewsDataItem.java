@@ -1,4 +1,4 @@
-package com.ershi.aspider.datasource.entity;
+package com.ershi.aspider.datasource.domain.entity;
 
 import lombok.Data;
 

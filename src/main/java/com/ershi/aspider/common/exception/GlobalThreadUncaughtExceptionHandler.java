@@ -1,4 +1,4 @@
-package com.ershi.aspider.exception;
+package com.ershi.aspider.common.exception;
 
 import lombok.extern.slf4j.Slf4j;
 

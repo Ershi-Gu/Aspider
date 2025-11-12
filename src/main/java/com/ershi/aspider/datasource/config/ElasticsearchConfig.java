@@ -1,4 +1,4 @@
-package com.ershi.aspider.config;
+package com.ershi.aspider.datasource.config;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;

@@ -3,7 +3,8 @@ package com.ershi.aspider.datasource;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import com.ershi.aspider.datasource.entity.NewsDataItem;
+import com.ershi.aspider.datasource.domain.entity.NewsDataItem;
+import com.ershi.aspider.datasource.domain.enums.DataSourceTypeEnum;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -17,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import javax.sql.DataSource;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -52,6 +52,10 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
     public EastMoneyNewsDataSource(Executor aspiderVirtualExecutor) {
         this.httpClient = HttpClients.createDefault();
         this.aspiderVirtualExecutor = aspiderVirtualExecutor;
+    }
+
+    @Override public DataSourceTypeEnum getDataSourceType() {
+        return DataSourceTypeEnum.EAST_MONEY;
     }
 
     @Override
