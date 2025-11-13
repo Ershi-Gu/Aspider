@@ -1,6 +1,7 @@
 package com.ershi.aspider.datasource.domain.entity;
 
 import lombok.Data;
+import org.springframework.util.DigestUtils;
 
 import java.time.LocalDateTime;
 
@@ -12,6 +13,9 @@ import java.time.LocalDateTime;
  */
 @Data
 public class NewsDataItem {
+
+    /** 去重标识（title + url 的 MD5） */
+    private String uniqueId;
 
     /** 标题 */
     private String title;
@@ -30,4 +34,15 @@ public class NewsDataItem {
 
     /** 获取时间 */
     private LocalDateTime crawlTime = LocalDateTime.now();
+
+    /**
+     * 生成唯一ID（基于 title + contentUrl）
+     */
+    public void generateUniqueId() {
+        if (title != null && contentUrl != null) {
+            String source = title + contentUrl;
+            this.uniqueId = DigestUtils.md5DigestAsHex(source.getBytes());
+        }
+    }
+
 }

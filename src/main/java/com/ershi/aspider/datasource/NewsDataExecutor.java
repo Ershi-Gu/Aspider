@@ -1,5 +1,7 @@
 package com.ershi.aspider.datasource;
 
+import org.springframework.stereotype.Component;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +12,7 @@ import java.util.Map;
  * @author Ershi-Gu.
  * @since 2025-11-11
  */
+@Component
 public class NewsDataExecutor {
 
     /** 存放数据源 */

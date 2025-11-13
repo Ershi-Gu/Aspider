@@ -60,15 +60,15 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
 
     @Override
     public List<NewsDataItem> getNewsData() {
-        // 获取新闻列表
-        List<NewsDataItem> newsDataItems = getNewsList(1, 20);
+        // 获取近100条新闻列表
+        List<NewsDataItem> newsDataItems = getNewsList(1, 100);
 
         // 获取详情内容
         return batchGetFullNewsContent(newsDataItems);
     }
 
     /**
-     * 从新闻列表中并发解析出详情。查看NewsDataItem.content
+     * 从新闻列表中并发解析出详情content。查看NewsDataItem.content
      *
      * @param newsDataItems
      * @return {@link List }<{@link NewsDataItem }>
@@ -96,6 +96,9 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
                     } else {
                         log.info("《{}》 未找到详情内容", item.getTitle());
                     }
+
+                    // 生成去重标识
+                    item.generateUniqueId();
 
                 } catch (IOException e) {
                     log.error("获取内容失败:{}，错误:{}", item.getContentUrl(), e.getMessage());
@@ -238,8 +241,7 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
             // 记录分页信息
             int pageIndex = data.getIntValue("page_index");
             int pageSize = data.getIntValue("page_size");
-            int totalHits = data.getIntValue("totle_hits");
-            log.info("分页信息 - 当前页: {}, 每页数量: {}, 总数: {}", pageIndex, pageSize, totalHits);
+            log.info("分页信息 - 当前页: {}, 每页数量: {}", pageIndex, pageSize);
 
         } catch (Exception e) {
             log.error("解析JSON数据失败", e);
@@ -295,9 +297,9 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
      * @param args
      */
     public static void main(String[] args) {
-        // testGetNewsList();
+        testGetNewsList();
 
-        testGetNewsData();
+        // testGetNewsData();
     }
 
     public static void testGetNewsList() {
@@ -306,7 +308,7 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
 
         // 获取数据
         EastMoneyNewsDataSource eastMoneyNewsDataSource = new EastMoneyNewsDataSource(executorService);
-        List<NewsDataItem> newsList = eastMoneyNewsDataSource.getNewsList(1, 5);
+        List<NewsDataItem> newsList = eastMoneyNewsDataSource.getNewsList(1, 100);
 
         // 解析输出
         for (NewsDataItem newsDataItem : newsList) {
