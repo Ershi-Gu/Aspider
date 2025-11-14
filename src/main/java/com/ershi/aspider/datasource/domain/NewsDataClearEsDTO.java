@@ -1,4 +1,4 @@
-package com.ershi.aspider.datasource.domain.dto;
+package com.ershi.aspider.datasource.domain;
 
 import lombok.Data;
 

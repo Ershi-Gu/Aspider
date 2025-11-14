@@ -1,4 +1,4 @@
-package com.ershi.aspider.datasource.domain.entity;
+package com.ershi.aspider.datasource.domain;
 
 import lombok.Data;
 import org.springframework.util.DigestUtils;

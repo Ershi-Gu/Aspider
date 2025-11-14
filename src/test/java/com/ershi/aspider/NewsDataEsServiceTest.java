@@ -1,8 +1,8 @@
 package com.ershi.aspider;
 
-import com.ershi.aspider.datasource.NewsDataExecutor;
+import com.ershi.aspider.datasource.service.NewsDataExecutor;
 import com.ershi.aspider.datasource.NewsDataSource;
-import com.ershi.aspider.datasource.domain.entity.NewsDataItem;
+import com.ershi.aspider.datasource.domain.NewsDataItem;
 import com.ershi.aspider.datasource.service.NewsDataEsService;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;

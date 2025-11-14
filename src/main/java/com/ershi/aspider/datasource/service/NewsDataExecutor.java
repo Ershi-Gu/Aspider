@@ -1,5 +1,6 @@
-package com.ershi.aspider.datasource;
+package com.ershi.aspider.datasource.service;
 
+import com.ershi.aspider.datasource.NewsDataSource;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;

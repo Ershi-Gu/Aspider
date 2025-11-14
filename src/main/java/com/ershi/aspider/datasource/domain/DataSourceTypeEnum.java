@@ -1,4 +1,4 @@
-package com.ershi.aspider.datasource.domain.enums;
+package com.ershi.aspider.datasource.domain;
 
 import lombok.Getter;
 

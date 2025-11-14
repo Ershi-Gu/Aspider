@@ -1,7 +1,7 @@
 package com.ershi.aspider.datasource;
 
-import com.ershi.aspider.datasource.domain.entity.NewsDataItem;
-import com.ershi.aspider.datasource.domain.enums.DataSourceTypeEnum;
+import com.ershi.aspider.datasource.domain.NewsDataItem;
+import com.ershi.aspider.datasource.domain.DataSourceTypeEnum;
 
 import java.util.List;
 
