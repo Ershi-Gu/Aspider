@@ -18,6 +18,19 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
+# 数据处理模块
+processor:
+  # 文章数据摘要提取配置，用于提取长文本内容，输出摘要供后续操作
+  content-extraction:
+    short-text-threshold: 500      # 短文本阈值
+    medium-text-threshold: 2000    # 中文本阈值
+    medium-text-truncate-length: 600  # 中文本截取长度
+    long-text-threshold: 2000      # 长文本阈值
+    enable-llm-summary: false      # 是否启用LLM总结
+    llm-summary-target-length: 200 # LLM总结目标长度
+    llm-model: xxx                 # LLM模型（请填写实际模型参数）
+
+
 # 文本向量化配置
 embedding:
   # 选择向量化提供商：zhipu（智谱）、qwen（千问）

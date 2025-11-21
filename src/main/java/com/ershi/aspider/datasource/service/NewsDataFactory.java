@@ -1,7 +1,7 @@
 package com.ershi.aspider.datasource.service;
 
-import com.ershi.aspider.datasource.NewsDataSource;
 import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;
+import com.ershi.aspider.datasource.provider.NewsDataSource;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;

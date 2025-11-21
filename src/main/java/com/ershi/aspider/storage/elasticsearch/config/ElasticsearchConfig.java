@@ -1,4 +1,4 @@
-package com.ershi.aspider.dbmanager.config;
+package com.ershi.aspider.storage.elasticsearch.config;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.Jackson3JsonpMapper;

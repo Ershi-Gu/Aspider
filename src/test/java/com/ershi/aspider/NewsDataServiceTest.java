@@ -3,9 +3,9 @@ package com.ershi.aspider;
 import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;
 import com.ershi.aspider.datasource.job.NewsDataJob;
 import com.ershi.aspider.datasource.service.NewsDataFactory;
-import com.ershi.aspider.datasource.NewsDataSource;
+import com.ershi.aspider.datasource.provider.NewsDataSource;
 import com.ershi.aspider.datasource.domain.NewsDataItem;
-import com.ershi.aspider.datasource.service.NewsDataService;
+import com.ershi.aspider.orchestration.service.NewsDataService;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,14 +25,10 @@ public class NewsDataServiceTest {
     private NewsDataJob newsDataJob;
 
     @Test
-    public void filterDuplicates() {
-        List<NewsDataSource> allDataSources = newsDataFactory.getAllDataSources();
-
-        for (NewsDataSource dataSource : allDataSources) {
-            List<NewsDataItem> newsDataItems = dataSource.getNewsData();
-            newsDataService.filterDuplicates(newsDataItems);
-            System.out.println("最终增量数据条数：" + newsDataItems.size());
-        }
+    public void testNewsDataSource() {
+        NewsDataSource dataSource = newsDataFactory.getDataSource(NewsDataSourceTypeEnum.EAST_MONEY);
+        List<NewsDataItem> newsData = dataSource.getNewsData();
+        System.out.println(newsData);
     }
 
     @Test

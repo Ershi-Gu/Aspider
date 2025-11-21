@@ -1,4 +1,4 @@
-package com.ershi.aspider.datasource;
+package com.ershi.aspider.datasource.provider;
 
 import com.ershi.aspider.datasource.domain.NewsDataItem;
 import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;

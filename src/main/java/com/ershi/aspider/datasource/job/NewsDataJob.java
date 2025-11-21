@@ -1,7 +1,7 @@
 package com.ershi.aspider.datasource.job;
 
 import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;
-import com.ershi.aspider.datasource.service.NewsDataService;
+import com.ershi.aspider.orchestration.service.NewsDataService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

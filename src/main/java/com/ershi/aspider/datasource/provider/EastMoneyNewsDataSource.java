@@ -1,4 +1,4 @@
-package com.ershi.aspider.datasource;
+package com.ershi.aspider.datasource.provider;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;

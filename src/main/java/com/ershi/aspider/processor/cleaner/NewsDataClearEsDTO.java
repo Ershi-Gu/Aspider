@@ -1,4 +1,4 @@
-package com.ershi.aspider.datasource.domain;
+package com.ershi.aspider.processor.cleaner;
 
 import lombok.Data;
 
