@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
  * @since 2025-11-12
  */
 @Getter
-public enum DataSourceTypeEnum {
+public enum NewsDataSourceTypeEnum {
 
     EAST_MONEY("EastMoney", "东方财富"),
     ;
@@ -25,26 +25,26 @@ public enum DataSourceTypeEnum {
     /** 数据源类型中文描述 */
     private final String desc;
 
-    DataSourceTypeEnum(String type, String desc) {
+    NewsDataSourceTypeEnum(String type, String desc) {
         this.type = type;
         this.desc = desc;
     }
 
     /** 缓存枚举实体类 */
-    private static final Map<String, DataSourceTypeEnum> CACHE;
+    private static final Map<String, NewsDataSourceTypeEnum> CACHE;
 
     static {
-        CACHE = Arrays.stream(DataSourceTypeEnum.values())
-            .collect(Collectors.toMap(DataSourceTypeEnum::getType, Function.identity()));
+        CACHE = Arrays.stream(NewsDataSourceTypeEnum.values())
+            .collect(Collectors.toMap(NewsDataSourceTypeEnum::getType, Function.identity()));
     }
 
     /**
      * 获取枚举实例
      *
      * @param type 数据源类型
-     * @return {@link DataSourceTypeEnum }
+     * @return {@link NewsDataSourceTypeEnum }
      */
-    public static DataSourceTypeEnum getEnumByType(String type) {
+    public static NewsDataSourceTypeEnum getEnumByType(String type) {
         return CACHE.get(type);
     }
 

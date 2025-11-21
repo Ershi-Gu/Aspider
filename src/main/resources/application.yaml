@@ -3,7 +3,7 @@ spring:
   application:
     name: ASpider
   profiles:
-    active: dev
+    active: dev # 根据需要修改开发环境
 
 # Elasticsearch配置
 elasticsearch:
@@ -17,3 +17,16 @@ logging:
     com.ershi.aspider: DEBUG # 指定包日志级别
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# 文本向量化配置
+embedding:
+  # 选择向量化提供商：zhipu（智谱）、qwen（千问）
+  provider: qwen
+  # 千问配置
+  qwen:
+    api-key: your-qwen-api-key
+    model: text-embedding-v4
+  # 智谱AI配置
+  zhipu:
+    api-key: your-zhipu-api-key
+    model: embedding-3  # 向量化模型名称

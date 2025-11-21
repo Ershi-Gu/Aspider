@@ -1,6 +1,7 @@
 package com.ershi.aspider.datasource.service;
 
 import com.ershi.aspider.datasource.NewsDataSource;
+import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -14,7 +15,7 @@ import java.util.Map;
  * @since 2025-11-11
  */
 @Component
-public class NewsDataExecutor {
+public class NewsDataFactory {
 
     /** 存放数据源 */
     private final Map<String, NewsDataSource> dataSourceMap = new HashMap<>();
@@ -24,7 +25,7 @@ public class NewsDataExecutor {
      *
      * @param newsDataSources
      */
-    public NewsDataExecutor(List<NewsDataSource> newsDataSources) {
+    public NewsDataFactory(List<NewsDataSource> newsDataSources) {
         newsDataSources.forEach(ds -> dataSourceMap.put(ds.getDataSourceType().getType(), ds));
     }
 
@@ -37,4 +38,13 @@ public class NewsDataExecutor {
         return dataSourceMap.values().stream().toList();
     }
 
+    /**
+     * 获取指定数据源实例
+     *
+     * @param newsDataSourceTypeEnum
+     * @return {@link NewsDataSource }
+     */
+    public NewsDataSource getDataSource(NewsDataSourceTypeEnum newsDataSourceTypeEnum) {
+        return dataSourceMap.get(newsDataSourceTypeEnum.getType());
+    }
 }

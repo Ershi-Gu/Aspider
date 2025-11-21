@@ -1,7 +1,7 @@
-package com.ershi.aspider.dbmanager;
+package com.ershi.aspider.dbmanager.config;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.json.jackson.JacksonJsonpMapper;
+import co.elastic.clients.json.jackson.Jackson3JsonpMapper;
 import co.elastic.clients.transport.rest5_client.Rest5ClientTransport;
 import co.elastic.clients.transport.rest5_client.low_level.Rest5Client;
 import org.apache.hc.core5.http.HttpHost;
@@ -41,7 +41,7 @@ public class ElasticsearchConfig {
 
     @Bean
     public ElasticsearchClient elasticsearchClient(Rest5Client rest5Client) {
-        Rest5ClientTransport transport = new Rest5ClientTransport(rest5Client, new JacksonJsonpMapper());
+        Rest5ClientTransport transport = new Rest5ClientTransport(rest5Client, new Jackson3JsonpMapper());
         return new ElasticsearchClient(transport);
     }
 }

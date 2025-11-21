@@ -1,7 +1,7 @@
-package com.ershi.aspider.dbmanager;
+package com.ershi.aspider.dbmanager.config;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import com.ershi.aspider.datasource.utils.ElasticsearchUtils;
+import com.ershi.aspider.dbmanager.ElasticsearchUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

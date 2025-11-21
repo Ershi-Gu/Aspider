@@ -1,7 +1,7 @@
 package com.ershi.aspider.datasource;
 
 import com.ershi.aspider.datasource.domain.NewsDataItem;
-import com.ershi.aspider.datasource.domain.DataSourceTypeEnum;
+import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;
 
 import java.util.List;
 
@@ -16,9 +16,9 @@ public interface NewsDataSource {
     /**
      * 数据源类型
      *
-     * @return {@link DataSourceTypeEnum }
+     * @return {@link NewsDataSourceTypeEnum }
      */
-    DataSourceTypeEnum getDataSourceType();
+    NewsDataSourceTypeEnum getDataSourceType();
 
     /**
      * 获取新闻数据

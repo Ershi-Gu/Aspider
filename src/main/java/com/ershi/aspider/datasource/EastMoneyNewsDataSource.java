@@ -4,7 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.ershi.aspider.datasource.domain.NewsDataItem;
-import com.ershi.aspider.datasource.domain.DataSourceTypeEnum;
+import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -54,8 +54,8 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
         this.aspiderVirtualExecutor = aspiderVirtualExecutor;
     }
 
-    @Override public DataSourceTypeEnum getDataSourceType() {
-        return DataSourceTypeEnum.EAST_MONEY;
+    @Override public NewsDataSourceTypeEnum getDataSourceType() {
+        return NewsDataSourceTypeEnum.EAST_MONEY;
     }
 
     @Override
@@ -74,6 +74,7 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
      * @return {@link List }<{@link NewsDataItem }>
      */
     private List<NewsDataItem> batchGetFullNewsContent(List<NewsDataItem> newsDataItems) {
+        // 并发获取新闻详情，加快处理速度
         List<CompletableFuture<NewsDataItem>> futures = newsDataItems.stream().map(
             item -> CompletableFuture.supplyAsync(() -> {
                 try {
@@ -297,9 +298,9 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
      * @param args
      */
     public static void main(String[] args) {
-        testGetNewsList();
+        // testGetNewsList();
 
-        // testGetNewsData();
+        testGetNewsData();
     }
 
     public static void testGetNewsList() {
