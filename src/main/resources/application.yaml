@@ -29,6 +29,7 @@ processor:
     enable-llm-summary: false      # 是否启用LLM总结
     llm-summary-target-length: 200 # LLM总结目标长度
     llm-model: xxx                 # LLM模型（请填写实际模型参数）
+    llm-api-key: xxx               # LLM API密钥，默认支持qwen
 
 
 # 文本向量化配置

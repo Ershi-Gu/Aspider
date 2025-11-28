@@ -5,7 +5,7 @@ import com.ershi.aspider.datasource.domain.NewsDataItem;
 import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;
 import com.ershi.aspider.datasource.provider.NewsDataSource;
 import com.ershi.aspider.embedding.EmbeddingExecutor;
-import com.ershi.aspider.datasource.domain.NewsDataCleaner;
+import com.ershi.aspider.processor.cleaner.NewsDataCleaner;
 import com.ershi.aspider.processor.extractor.ContentExtractor;
 import com.ershi.aspider.storage.elasticsearch.service.NewsDataStorageService;
 import org.slf4j.Logger;
@@ -144,13 +144,13 @@ public class NewsDataService {
                 .collect(Collectors.toList());
             List<List<Double>> titleVectors = embeddingExecutor.embedTexts(titles);
 
-            log.info("正在提取并向量化内容...");
-            List<String> contents = contentExtractor.extractBatch(newsData);
-            List<List<Double>> contentVectors = embeddingExecutor.embedTexts(contents);
+            log.info("正在提取摘要并向量化...");
+            List<String> summaries = contentExtractor.extractBatch(newsData);
+            List<List<Double>> summaryVectors = embeddingExecutor.embedTexts(summaries);
 
             for (int i = 0; i < newsData.size(); i++) {
                 newsData.get(i).setTitleVector(titleVectors.get(i));
-                newsData.get(i).setContentVector(contentVectors.get(i));
+                newsData.get(i).setSummaryVector(summaryVectors.get(i));
             }
 
             log.info("向量化完成");

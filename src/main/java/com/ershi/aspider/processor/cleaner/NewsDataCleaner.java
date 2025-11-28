@@ -1,4 +1,4 @@
-package com.ershi.aspider.datasource.domain;
+package com.ershi.aspider.processor.cleaner;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.FieldValue;
@@ -6,7 +6,7 @@ import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
-import com.ershi.aspider.processor.cleaner.NewsDataClearEsDTO;
+import com.ershi.aspider.datasource.domain.NewsDataItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

@@ -31,11 +31,11 @@ public class NewsDataItem {
     /** 摘要 */
     private String summary;
 
+    /** 摘要向量（用于语义搜索） */
+    private List<Double> summaryVector;
+
     /** 文章详情 */
     private String content;
-
-    /** 内容向量（用于语义搜索） */
-    private List<Double> contentVector;
 
     /** 发布时间 */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
