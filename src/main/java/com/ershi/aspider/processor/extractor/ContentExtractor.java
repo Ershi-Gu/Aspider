@@ -3,7 +3,7 @@ package com.ershi.aspider.processor.extractor;
 import com.ershi.aspider.common.utils.TextTruncateUtil;
 import com.ershi.aspider.datasource.domain.NewsDataItem;
 import com.ershi.aspider.processor.extractor.config.ContentExtractionConfig;
-import com.ershi.aspider.processor.extractor.service.LLMSummaryService;
+import com.ershi.aspider.processor.extractor.service.LLMSummaryExecutor;
 import com.ershi.aspider.processor.extractor.strategy.HybridExtractionStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,15 +30,14 @@ public class ContentExtractor {
     /** 摘要提取配置 */
     private final ContentExtractionConfig config;
 
-    /** LLM 摘要提取服务，可配置是否开启 */
-    private final LLMSummaryService llmSummaryService;
+    /** LLM摘要执行器，由enable配置控制是否加载 */
+    private final LLMSummaryExecutor llmSummaryExecutor;
 
     public ContentExtractor(HybridExtractionStrategy strategy, ContentExtractionConfig config,
-        @Autowired(required = false) LLMSummaryService llmSummaryService) {
+        @Autowired(required = false) LLMSummaryExecutor llmSummaryExecutor) {
         this.strategy = strategy;
         this.config = config;
-        this.llmSummaryService = llmSummaryService;
-        log.info("内容提取器初始化完成，LLM总结：{}", config.getEnableLlmSummary() ? "启用" : "禁用");
+        this.llmSummaryExecutor = llmSummaryExecutor;
     }
 
     /**
@@ -56,12 +55,14 @@ public class ContentExtractor {
      * 单个提取
      */
     public String extract(NewsDataItem item) {
+        // 中短文本提取
         String extracted = strategy.extract(item);
 
+        // 长文本提取
         if (extracted == null) {
-            if (config.getEnableLlmSummary() && llmSummaryService != null) {
+            if (llmSummaryExecutor != null) {
                 log.debug("长文本使用LLM总结：{}", item.getTitle());
-                return llmSummaryService.generateSummary(item.getContent());
+                return llmSummaryExecutor.generateSummary(item.getContent());
             } else {
                 log.debug("长文本截取（LLM未启用）：{}", item.getTitle());
                 return TextTruncateUtil.smartTruncate(item.getContent(), config.getMediumTextTruncateLength());

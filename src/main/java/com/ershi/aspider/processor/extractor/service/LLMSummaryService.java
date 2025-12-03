@@ -1,31 +1,39 @@
 package com.ershi.aspider.processor.extractor.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
+import com.ershi.aspider.processor.extractor.domain.LLMProviderEnum;
+
+import java.util.List;
 
 /**
- * LLM摘要生成服务
+ * LLM摘要生成服务接口
  *
  * @author Ershi-Gu.
  * @since 2025-11-15
  */
-@Service
-@ConditionalOnProperty(name = "processor.content-extraction.enable-llm-summary", havingValue = "true")
-public class LLMSummaryService {
-
-    private static final Logger log = LoggerFactory.getLogger(LLMSummaryService.class);
-
-    @Value("${processor.content-extraction.llm-model}")
-    private static final String LLM_MODEL = "qwen";
+public interface LLMSummaryService {
 
     /**
-     * todo LLM生成摘要
+     * 获取提供商类型
+     *
+     * @return {@link LLMProviderEnum }
      */
-    public String generateSummary(String content) {
-        return null;
-    }
+    LLMProviderEnum getProviderType();
 
+    /**
+     * 生成摘要
+     *
+     * @param content      原始内容
+     * @param targetLength 目标长度
+     * @return 摘要文本
+     */
+    String generateSummary(String content, int targetLength);
+
+    /**
+     * 批量生成摘要
+     *
+     * @param contents     原始内容列表
+     * @param targetLength 目标长度
+     * @return 摘要文本列表
+     */
+    List<String> batchGenerateSummary(List<String> contents, int targetLength);
 }

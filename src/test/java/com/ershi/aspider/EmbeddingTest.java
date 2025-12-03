@@ -1,6 +1,6 @@
 package com.ershi.aspider;
 
-import com.ershi.aspider.embedding.service.QwenEmbeddingService;
+import com.ershi.aspider.embedding.service.impl.QwenEmbeddingService;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

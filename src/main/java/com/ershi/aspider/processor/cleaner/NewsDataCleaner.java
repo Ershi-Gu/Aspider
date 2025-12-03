@@ -35,16 +35,32 @@ public class NewsDataCleaner {
     }
 
     /**
-     * 清洗数据：去重
+     * 清洗数据：文本清洗 + 去重
      */
     public List<NewsDataItem> clean(List<NewsDataItem> newsData) {
         log.info("开始数据清洗，原始数据 {} 条", newsData.size());
+
+        // 移除空白字符
+        removeWhitespace(newsData);
 
         // 去重
         filterDuplicates(newsData);
 
         log.info("清洗完成，剩余 {} 条新数据", newsData.size());
         return newsData;
+    }
+
+    /**
+     * 移除文本中的空白字符（空格、全角空格、不换行空格等）
+     */
+    public void removeWhitespace(List<NewsDataItem> newsData) {
+        for (NewsDataItem item : newsData) {
+            if (item.getContent() != null) {
+                // 移除所有空白字符（空格、全角空格、不换行空格）
+                String cleaned = item.getContent().replaceAll("[\\s\\u3000\\u00A0]+", "");
+                item.setContent(cleaned);
+            }
+        }
     }
 
     /**

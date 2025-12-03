@@ -1,6 +1,7 @@
-package com.ershi.aspider.embedding.service;
+package com.ershi.aspider.embedding.service.impl;
 
 import com.ershi.aspider.embedding.domain.EmbeddingProviderEnum;
+import com.ershi.aspider.embedding.service.EmbeddingService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.List;
@@ -12,7 +13,7 @@ import java.util.List;
  * @since 2025-11-14
  */
 @ConditionalOnProperty(name = "embedding.provider", havingValue = "zhipu")
-public class ZhipuEmbeddingService implements EmbeddingService{
+public class ZhipuEmbeddingService implements EmbeddingService {
 
     /** 向量维度 */
     public static final Integer DIMENSION = 1024;

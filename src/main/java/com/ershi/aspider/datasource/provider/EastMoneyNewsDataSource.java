@@ -86,14 +86,9 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
                     Element contentBody = doc.getElementById("ContentBody");
 
                     if (contentBody != null) {
-                        // 移除隐藏段落，清洗格式
+                        // 移除隐藏段落，清洗HTML格式
                         cleanContent(contentBody);
-                        // 提取纯文本内容
-                        String content = contentBody.text();
-                        // 移除所有空白字符
-                        content = content.replaceAll("[\\s\\u3000\\u00A0]+", "");
-
-                        item.setContent(content);
+                        item.setContent(contentBody.text());
                     } else {
                         log.info("《{}》 未找到详情内容", item.getTitle());
                     }

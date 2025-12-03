@@ -1,46 +1,34 @@
-# Spring Boot应用配置
 spring:
   application:
     name: ASpider
   profiles:
-    active: dev # 根据需要修改开发环境
-
-# Elasticsearch配置
-elasticsearch:
+    active: dev
+elasticsearch: # Elasticsearch配置
   host: xxx
   port: xxx
-
-# 日志配置
-logging:
+logging: # 日志配置
   level:
     root: INFO # 全局日志级别
-    com.ershi.aspider: DEBUG # 指定包日志级别
+#    com.ershi.aspider: DEBUG # 开启可用于详细调试
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
-# 数据处理模块
-processor:
-  # 文章数据摘要提取配置，用于提取长文本内容，输出摘要供后续操作
-  content-extraction:
-    short-text-threshold: 500      # 短文本阈值
-    medium-text-threshold: 2000    # 中文本阈值
-    medium-text-truncate-length: 600  # 中文本截取长度
-    long-text-threshold: 2000      # 长文本阈值
-    enable-llm-summary: false      # 是否启用LLM总结
-    llm-summary-target-length: 200 # LLM总结目标长度
-    llm-model: xxx                 # LLM模型（请填写实际模型参数）
-    llm-api-key: xxx               # LLM API密钥，默认支持qwen
-
-
-# 文本向量化配置
-embedding:
-  # 选择向量化提供商：zhipu（智谱）、qwen（千问）
-  provider: qwen
-  # 千问配置
+embedding: # 文本向量化配置
+  provider: qwen # 选择向量化提供商：zhipu（智谱）、qwen（千问）
   qwen:
     api-key: your-qwen-api-key
     model: text-embedding-v4
-  # 智谱AI配置
   zhipu:
     api-key: your-zhipu-api-key
     model: embedding-3  # 向量化模型名称
+processor: # 数据处理模块
+  content-extraction: # 文章数据摘要提取配置，用于提取长文本内容，输出摘要供后续操作
+    short-text-threshold: 500      # 短文本阈值
+    medium-text-threshold: 2000    # 中文本阈值
+    medium-text-truncate-length: 600  # 中文本截取长度
+    llm-summary: # LLM摘要提取配置
+      enable: false                # 是否启用LLM总结
+      target-length: 200           # 摘要目标长度
+      provider: qwen               # 提供商：qwen/zhipu/openai/deepseek
+      model: qwen3-max            # 模型名称
+      api-key: your-llm-api-key    # API密钥

@@ -1,12 +1,12 @@
-package com.ershi.aspider.embedding.service;
+package com.ershi.aspider.embedding.service.impl;
 
 import com.alibaba.dashscope.embeddings.TextEmbedding;
 import com.alibaba.dashscope.embeddings.TextEmbeddingParam;
 import com.alibaba.dashscope.embeddings.TextEmbeddingResult;
 import com.alibaba.dashscope.embeddings.TextEmbeddingResultItem;
 import com.alibaba.dashscope.exception.NoApiKeyException;
-import com.alibaba.dashscope.utils.Constants;
 import com.ershi.aspider.embedding.domain.EmbeddingProviderEnum;
+import com.ershi.aspider.embedding.service.EmbeddingService;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,9 +45,6 @@ public class QwenEmbeddingService implements EmbeddingService {
 
     @PostConstruct
     public void init() {
-        // 设置API Key到Constants
-        Constants.apiKey = apiKey;
-        // 初始化向量模型
         textEmbedding = new TextEmbedding();
         log.info("千问向量化服务初始化成功，模型：{}", model);
     }
@@ -71,6 +68,7 @@ public class QwenEmbeddingService implements EmbeddingService {
             // 构造向量化请求参数
             TextEmbeddingParam param = TextEmbeddingParam
                 .builder()
+                .apiKey(apiKey)
                 .model(model)
                 .texts(texts)
                 .dimension(DIMENSION)

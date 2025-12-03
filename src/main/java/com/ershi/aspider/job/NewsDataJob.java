@@ -1,4 +1,4 @@
-package com.ershi.aspider.datasource.job;
+package com.ershi.aspider.job;
 
 import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;
 import com.ershi.aspider.orchestration.service.NewsDataService;
