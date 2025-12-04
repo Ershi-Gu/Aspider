@@ -4,7 +4,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.BulkRequest;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
 import co.elastic.clients.elasticsearch.core.bulk.BulkResponseItem;
-import com.ershi.aspider.datasource.domain.NewsDataItem;
+import com.ershi.aspider.datasource.domain.FinancialArticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,37 +19,37 @@ import java.util.List;
  * @since 2025-11-15
  */
 @Service
-public class NewsDataStorageService {
+public class FinancialArticleStorageService {
 
-    private static final Logger log = LoggerFactory.getLogger(NewsDataStorageService.class);
+    private static final Logger log = LoggerFactory.getLogger(FinancialArticleStorageService.class);
 
     private static final String NEWS_DATA_INDEX = "news_data_items";
 
     private final ElasticsearchClient elasticsearchClient;
 
-    public NewsDataStorageService(ElasticsearchClient elasticsearchClient) {
+    public FinancialArticleStorageService(ElasticsearchClient elasticsearchClient) {
         this.elasticsearchClient = elasticsearchClient;
     }
 
     /**
      * 批量保存到Elasticsearch
      *
-     * @param newsData 待保存的新闻数据
+     * @param financialArticle 待保存的新闻数据
      * @return 成功保存的数据条数
      */
-    public int batchSaveToEs(List<NewsDataItem> newsData) {
-        if (newsData == null || newsData.isEmpty()) {
+    public int batchSaveToEs(List<FinancialArticle> financialArticle) {
+        if (financialArticle == null || financialArticle.isEmpty()) {
             log.warn("无数据需要保存");
             return 0;
         }
 
-        log.info("开始批量保存 {} 条数据到ES", newsData.size());
+        log.info("开始批量保存 {} 条数据到ES", financialArticle.size());
 
         try {
             // 构建批量请求
             BulkRequest.Builder bulkBuilder = new BulkRequest.Builder();
 
-            for (NewsDataItem item : newsData) {
+            for (FinancialArticle item : financialArticle) {
                 bulkBuilder.operations(op -> op
                     .index(idx -> idx
                         .index(NEWS_DATA_INDEX)

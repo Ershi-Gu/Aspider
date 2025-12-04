@@ -1,7 +1,7 @@
 package com.ershi.aspider.processor.extractor.strategy;
 
 import com.ershi.aspider.common.utils.TextTruncateUtil;
-import com.ershi.aspider.datasource.domain.NewsDataItem;
+import com.ershi.aspider.datasource.domain.FinancialArticle;
 import com.ershi.aspider.processor.extractor.config.ContentExtractionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +32,7 @@ public class HybridExtractionStrategy {
     /**
      * 提取用于向量化的内容
      */
-    public String extract(NewsDataItem item) {
+    public String extract(FinancialArticle item) {
         // 优先使用摘要
         if (hasSummary(item)) {
             log.debug("使用摘要：{}", item.getTitle());
@@ -61,7 +61,7 @@ public class HybridExtractionStrategy {
     /**
      * 判断是否有有效摘要
      */
-    private boolean hasSummary(NewsDataItem item) {
+    private boolean hasSummary(FinancialArticle item) {
         return item.getSummary() != null && !item.getSummary().trim().isEmpty();
     }
 }

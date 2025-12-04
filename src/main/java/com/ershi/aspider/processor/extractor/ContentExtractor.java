@@ -1,7 +1,7 @@
 package com.ershi.aspider.processor.extractor;
 
 import com.ershi.aspider.common.utils.TextTruncateUtil;
-import com.ershi.aspider.datasource.domain.NewsDataItem;
+import com.ershi.aspider.datasource.domain.FinancialArticle;
 import com.ershi.aspider.processor.extractor.config.ContentExtractionConfig;
 import com.ershi.aspider.processor.extractor.service.LLMSummaryExecutor;
 import com.ershi.aspider.processor.extractor.strategy.HybridExtractionStrategy;
@@ -43,7 +43,7 @@ public class ContentExtractor {
     /**
      * 批量提取内容
      */
-    public List<String> extractBatch(List<NewsDataItem> items) {
+    public List<String> extractBatch(List<FinancialArticle> items) {
         log.info("开始批量提取内容，共 {} 条", items.size());
 
         return items.stream()
@@ -54,7 +54,7 @@ public class ContentExtractor {
     /**
      * 单个提取
      */
-    public String extract(NewsDataItem item) {
+    public String extract(FinancialArticle item) {
         // 中短文本提取
         String extracted = strategy.extract(item);
 

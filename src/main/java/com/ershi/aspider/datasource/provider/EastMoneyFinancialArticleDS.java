@@ -3,8 +3,8 @@ package com.ershi.aspider.datasource.provider;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import com.ershi.aspider.datasource.domain.NewsDataItem;
-import com.ershi.aspider.datasource.domain.NewsDataSourceTypeEnum;
+import com.ershi.aspider.datasource.domain.FinancialArticle;
+import com.ershi.aspider.datasource.domain.FinancialArticleDSTypeEnum;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -33,9 +33,9 @@ import java.util.stream.Collectors;
  * @since 2025-11-10
  */
 @Component
-public class EastMoneyNewsDataSource implements NewsDataSource {
+public class EastMoneyFinancialArticleDS implements FinancialArticleDataSource {
 
-    private static final Logger log = LoggerFactory.getLogger(EastMoneyNewsDataSource.class);
+    private static final Logger log = LoggerFactory.getLogger(EastMoneyFinancialArticleDS.class);
 
     private final CloseableHttpClient httpClient;
 
@@ -49,33 +49,33 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
         "&types=1,20";
 
     @Autowired
-    public EastMoneyNewsDataSource(Executor aspiderVirtualExecutor) {
+    public EastMoneyFinancialArticleDS(Executor aspiderVirtualExecutor) {
         this.httpClient = HttpClients.createDefault();
         this.aspiderVirtualExecutor = aspiderVirtualExecutor;
     }
 
-    @Override public NewsDataSourceTypeEnum getDataSourceType() {
-        return NewsDataSourceTypeEnum.EAST_MONEY;
+    @Override public FinancialArticleDSTypeEnum getDataSourceType() {
+        return FinancialArticleDSTypeEnum.EAST_MONEY;
     }
 
     @Override
-    public List<NewsDataItem> getNewsData() {
+    public List<FinancialArticle> getFinancialArticle() {
         // 获取近100条新闻列表
-        List<NewsDataItem> newsDataItems = getNewsList(1, 100);
+        List<FinancialArticle> financialArticles = getNewsList(1, 100);
 
         // 获取详情内容
-        return batchGetFullNewsContent(newsDataItems);
+        return batchGetFullNewsContent(financialArticles);
     }
 
     /**
-     * 从新闻列表中并发解析出详情content。查看NewsDataItem.content
+     * 从新闻列表中并发解析出详情content。查看financialArticle.content
      *
-     * @param newsDataItems
-     * @return {@link List }<{@link NewsDataItem }>
+     * @param financialArticles
+     * @return {@link List }<{@link FinancialArticle }>
      */
-    private List<NewsDataItem> batchGetFullNewsContent(List<NewsDataItem> newsDataItems) {
+    private List<FinancialArticle> batchGetFullNewsContent(List<FinancialArticle> financialArticles) {
         // 并发获取新闻详情，加快处理速度
-        List<CompletableFuture<NewsDataItem>> futures = newsDataItems.stream().map(
+        List<CompletableFuture<FinancialArticle>> futures = financialArticles.stream().map(
             item -> CompletableFuture.supplyAsync(() -> {
                 try {
                     // 访问详情url，获取html
@@ -131,11 +131,11 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
      *
      * @param pageIndex
      * @param pageSize
-     * @return {@link List }<{@link NewsDataItem }>
+     * @return {@link List }<{@link FinancialArticle }>
      */
-    private List<NewsDataItem> getNewsList(int pageIndex, int pageSize) {
+    private List<FinancialArticle> getNewsList(int pageIndex, int pageSize) {
         // 结果集
-        List<NewsDataItem> newsDataItems;
+        List<FinancialArticle> financialArticles;
 
         // 构建请求url
         String url = buildUrl(pageIndex, pageSize);
@@ -149,14 +149,14 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
             }
 
             // 解析新闻列表数据，保存为dto
-            newsDataItems = parseNewsData(jsonData);
-            log.info("成功获取 {} 条新闻数据", newsDataItems.size());
+            financialArticles = parsefinancialArticle(jsonData);
+            log.info("成功获取 {} 条新闻数据", financialArticles.size());
 
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
-        return newsDataItems;
+        return financialArticles;
     }
 
     /**
@@ -195,10 +195,10 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
     }
 
     /**
-     * 解析JSON数据为NewsDataItem列表
+     * 解析JSON数据为financialArticle列表
      */
-    private List<NewsDataItem> parseNewsData(String jsonData) {
-        List<NewsDataItem> newsDataItems = new ArrayList<>();
+    private List<FinancialArticle> parsefinancialArticle(String jsonData) {
+        List<FinancialArticle> financialArticles = new ArrayList<>();
 
         try {
             // 解析JSON数据
@@ -208,29 +208,29 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
             String code = root.getString("code");
             if (!"1".equals(code)) {
                 log.error("API返回错误，code: {}, message: {}", code, root.getString("message"));
-                return newsDataItems;
+                return financialArticles;
             }
 
             // 获取data对象
             JSONObject data = root.getJSONObject("data");
             if (data == null) {
                 log.error("响应中没有data字段");
-                return newsDataItems;
+                return financialArticles;
             }
 
             // 获取新闻列表
             JSONArray list = data.getJSONArray("list");
             if (list == null || list.isEmpty()) {
                 log.warn("新闻列表为空");
-                return newsDataItems;
+                return financialArticles;
             }
 
             // 解析每条新闻
             for (int i = 0; i < list.size(); i++) {
                 JSONObject newsJson = list.getJSONObject(i);
-                NewsDataItem newsDataItem = parseNewsDataItem(newsJson);
-                if (newsDataItem != null) {
-                    newsDataItems.add(newsDataItem);
+                FinancialArticle financialArticle = parsefinancialArticle(newsJson);
+                if (financialArticle != null) {
+                    financialArticles.add(financialArticle);
                 }
             }
 
@@ -243,27 +243,27 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
             log.error("解析JSON数据失败", e);
         }
 
-        return newsDataItems;
+        return financialArticles;
     }
 
     /**
      * 解析单条新闻数据
      *
      * @param newsJson api返回json格式数据
-     * @return {@link NewsDataItem }
+     * @return {@link FinancialArticle }
      */
-    private NewsDataItem parseNewsDataItem(JSONObject newsJson) {
+    private FinancialArticle parsefinancialArticle(JSONObject newsJson) {
         try {
-            NewsDataItem newsDataItem = new NewsDataItem();
+            FinancialArticle financialArticle = new FinancialArticle();
 
             // 标题
             if (newsJson.containsKey("title") && newsJson.get("title") != null) {
-                newsDataItem.setTitle(newsJson.getString("title"));
+                financialArticle.setTitle(newsJson.getString("title"));
             }
 
             // URL
             if (newsJson.containsKey("url") && newsJson.get("url") != null) {
-                newsDataItem.setContentUrl(newsJson.getString("url"));
+                financialArticle.setContentUrl(newsJson.getString("url"));
             }
 
             // 发布时间
@@ -271,15 +271,15 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
                 String showTimeStr = newsJson.getString("showTime");
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
                 LocalDateTime showTime = LocalDateTime.parse(showTimeStr, formatter);
-                newsDataItem.setPublishTime(showTime);
+                financialArticle.setPublishTime(showTime);
             }
 
             // 摘要
             if (newsJson.containsKey("summary") && newsJson.get("summary") != null) {
-                newsDataItem.setSummary(newsJson.getString("summary"));
+                financialArticle.setSummary(newsJson.getString("summary"));
             }
 
-            return newsDataItem;
+            return financialArticle;
 
         } catch (Exception e) {
             log.error("解析单条新闻失败", e);
@@ -295,7 +295,7 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
     public static void main(String[] args) {
         // testGetNewsList();
 
-        testGetNewsData();
+        testGetfinancialArticle();
     }
 
     public static void testGetNewsList() {
@@ -303,26 +303,28 @@ public class EastMoneyNewsDataSource implements NewsDataSource {
         ExecutorService executorService = Executors.newThreadPerTaskExecutor(virtualFactory);
 
         // 获取数据
-        EastMoneyNewsDataSource eastMoneyNewsDataSource = new EastMoneyNewsDataSource(executorService);
-        List<NewsDataItem> newsList = eastMoneyNewsDataSource.getNewsList(1, 100);
+        EastMoneyFinancialArticleDS
+            eastMoneyfinancialArticleSource = new EastMoneyFinancialArticleDS(executorService);
+        List<FinancialArticle> newsList = eastMoneyfinancialArticleSource.getNewsList(1, 100);
 
         // 解析输出
-        for (NewsDataItem newsDataItem : newsList) {
+        for (FinancialArticle financialArticle : newsList) {
             log.info("====================================");
-            log.info("标题: {}", newsDataItem.getTitle());
-            log.info("URL: {}", newsDataItem.getContentUrl());
-            log.info("摘要: {}", newsDataItem.getSummary());
-            log.info("发布时间: {}", newsDataItem.getPublishTime());
-            log.info("爬取时间: {}", newsDataItem.getCrawlTime());
+            log.info("标题: {}", financialArticle.getTitle());
+            log.info("URL: {}", financialArticle.getContentUrl());
+            log.info("摘要: {}", financialArticle.getSummary());
+            log.info("发布时间: {}", financialArticle.getPublishTime());
+            log.info("爬取时间: {}", financialArticle.getCrawlTime());
         }
     }
 
-    public static void testGetNewsData() {
+    public static void testGetfinancialArticle() {
         ThreadFactory virtualFactory = Thread.ofVirtual().name("Aspider-virtual-", 0).factory();
         ExecutorService executorService = Executors.newThreadPerTaskExecutor(virtualFactory);
 
-        NewsDataSource eastMoneyNewsDataSource = new EastMoneyNewsDataSource(executorService);
-        List<NewsDataItem> newsData = eastMoneyNewsDataSource.getNewsData();
-        log.info("成功获取详情：{} 条", newsData.size());
+        FinancialArticleDataSource
+            eastMoneyFinancialArticleDataSource = new EastMoneyFinancialArticleDS(executorService);
+        List<FinancialArticle> financialArticle = eastMoneyFinancialArticleDataSource.getFinancialArticle();
+        log.info("成功获取详情：{} 条", financialArticle.size());
     }
 }

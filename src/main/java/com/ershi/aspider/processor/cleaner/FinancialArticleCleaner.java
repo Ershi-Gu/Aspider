@@ -6,7 +6,7 @@ import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
-import com.ershi.aspider.datasource.domain.NewsDataItem;
+import com.ershi.aspider.datasource.domain.FinancialArticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -23,38 +23,38 @@ import java.util.stream.Collectors;
  * @since 2025-11-15
  */
 @Component
-public class NewsDataCleaner {
+public class FinancialArticleCleaner {
 
-    private static final Logger log = LoggerFactory.getLogger(NewsDataCleaner.class);
+    private static final Logger log = LoggerFactory.getLogger(FinancialArticleCleaner.class);
     private static final String NEWS_DATA_INDEX = "news_data_items";
 
     private final ElasticsearchClient elasticsearchClient;
 
-    public NewsDataCleaner(ElasticsearchClient elasticsearchClient) {
+    public FinancialArticleCleaner(ElasticsearchClient elasticsearchClient) {
         this.elasticsearchClient = elasticsearchClient;
     }
 
     /**
      * 清洗数据：文本清洗 + 去重
      */
-    public List<NewsDataItem> clean(List<NewsDataItem> newsData) {
-        log.info("开始数据清洗，原始数据 {} 条", newsData.size());
+    public List<FinancialArticle> clean(List<FinancialArticle> financialArticle) {
+        log.info("开始数据清洗，原始数据 {} 条", financialArticle.size());
 
         // 移除空白字符
-        removeWhitespace(newsData);
+        removeWhitespace(financialArticle);
 
         // 去重
-        filterDuplicates(newsData);
+        filterDuplicates(financialArticle);
 
-        log.info("清洗完成，剩余 {} 条新数据", newsData.size());
-        return newsData;
+        log.info("清洗完成，剩余 {} 条新数据", financialArticle.size());
+        return financialArticle;
     }
 
     /**
      * 移除文本中的空白字符（空格、全角空格、不换行空格等）
      */
-    public void removeWhitespace(List<NewsDataItem> newsData) {
-        for (NewsDataItem item : newsData) {
+    public void removeWhitespace(List<FinancialArticle> financialArticle) {
+        for (FinancialArticle item : financialArticle) {
             if (item.getContent() != null) {
                 // 移除所有空白字符（空格、全角空格、不换行空格）
                 String cleaned = item.getContent().replaceAll("[\\s\\u3000\\u00A0]+", "");
@@ -66,19 +66,19 @@ public class NewsDataCleaner {
     /**
      * 过滤重复新闻数据
      *
-     * @param newsData
+     * @param financialArticle
      */
-    public void filterDuplicates(List<NewsDataItem> newsData) {
+    public void filterDuplicates(List<FinancialArticle> financialArticle) {
         // 获取唯一标识列表
-        List<String> uniqueIds = newsData.stream()
-            .map(NewsDataItem::getUniqueId)
+        List<String> uniqueIds = financialArticle.stream()
+            .map(FinancialArticle::getUniqueId)
             .collect(Collectors.toList());
 
         // 检查是否存在，返回已存在标识
         Set<String> existUniqueIds = checkExistingUniqueIds(uniqueIds);
 
         // 过滤已存在数据
-        newsData.removeIf(item -> existUniqueIds.contains(item.getUniqueId()));
+        financialArticle.removeIf(item -> existUniqueIds.contains(item.getUniqueId()));
     }
 
     /**
@@ -119,16 +119,16 @@ public class NewsDataCleaner {
             );
 
             // 执行查询
-            SearchResponse<NewsDataClearEsDTO> response = elasticsearchClient.search(
+            SearchResponse<FinancialArticleClearEsDTO> response = elasticsearchClient.search(
                 searchRequest,
-                NewsDataClearEsDTO.class
+                FinancialArticleClearEsDTO.class
             );
 
             // 提取已存在的uniqueId
             Set<String> existingIds = response.hits().hits().stream()
                 .map(Hit::source)
                 .filter(item -> item != null && item.getUniqueId() != null)
-                .map(NewsDataClearEsDTO::getUniqueId)
+                .map(FinancialArticleClearEsDTO::getUniqueId)
                 .collect(Collectors.toSet());
 
             log.info("批量检查 {} 条数据，发现 {} 条已存在", uniqueIds.size(), existingIds.size());

@@ -1,14 +1,10 @@
 package com.ershi.aspider;
 
-import com.ershi.aspider.processor.cleaner.NewsDataCleaner;
+import com.ershi.aspider.processor.cleaner.FinancialArticleCleaner;
 import com.ershi.aspider.processor.extractor.service.LLMSummaryExecutor;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.stream.Collectors;
 
 /**
  * LLM摘要服务测试
@@ -17,7 +13,7 @@ import java.util.stream.Collectors;
 public class LLMSummaryTest {
 
     @Resource
-    private NewsDataCleaner newsDataCleaner;
+    private FinancialArticleCleaner financialArticleCleaner;
 
     @Resource
     private LLMSummaryExecutor llmSummaryExecutor;

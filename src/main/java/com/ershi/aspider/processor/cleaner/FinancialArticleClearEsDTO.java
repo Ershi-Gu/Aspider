@@ -10,7 +10,7 @@ import lombok.Data;
  * @since 2025-11-13
  */
 @Data
-public class NewsDataClearEsDTO {
+public class FinancialArticleClearEsDTO {
     /** 去重标识（title + url 的 MD5） */
     private String uniqueId;
 }

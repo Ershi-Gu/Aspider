@@ -14,7 +14,7 @@ import java.util.List;
  * @since 2025-11-10
  */
 @Data
-public class NewsDataItem {
+public class FinancialArticle {
 
     /** 去重标识（title + url 的 MD5） */
     private String uniqueId;
@@ -44,6 +44,9 @@ public class NewsDataItem {
     /** 获取时间 */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime crawlTime = LocalDateTime.now();
+
+    /** 是否已完成向量化处理 */
+    private Boolean processed = false;
 
     /**
      * 生成唯一ID（基于 title + contentUrl）
