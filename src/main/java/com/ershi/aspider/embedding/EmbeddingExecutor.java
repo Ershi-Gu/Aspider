@@ -1,6 +1,7 @@
 package com.ershi.aspider.embedding;
 
 import com.ershi.aspider.common.utils.BatchUtils;
+import com.ershi.aspider.embedding.config.EmbeddingConfig;
 import com.ershi.aspider.embedding.service.EmbeddingService;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
@@ -23,12 +24,6 @@ import java.util.concurrent.Executor;
 @Component
 public class EmbeddingExecutor {
 
-    /** API限制：每次最多10条 */
-    private static final int MAX_BATCH_SIZE = 10;
-
-    /** QPS限制：15次/秒 */
-    private static final int QPS_LIMIT = 15;
-
     private static final Logger log = LoggerFactory.getLogger(EmbeddingExecutor.class);
 
     /** 向量化服务 */
@@ -40,16 +35,24 @@ public class EmbeddingExecutor {
     /** 速率限制器 */
     private final Bucket bucket;
 
+    /** 向量化配置 */
+    private final EmbeddingConfig embeddingConfig;
+
     /**
      * Spring 会自动注入当前激活的 EmbeddingService 实现，通过 @ConditionalOnProperty 控制只有一个实现被加载
      */
-    public EmbeddingExecutor(EmbeddingService embeddingService, Executor aspiderVirtualExecutor) {
+    public EmbeddingExecutor(EmbeddingService embeddingService, Executor aspiderVirtualExecutor,
+                             EmbeddingConfig embeddingConfig) {
         this.embeddingService = embeddingService;
         this.aspiderVirtualExecutor = aspiderVirtualExecutor;
-        this.bucket = Bucket.builder().addLimit(Bandwidth.simple(QPS_LIMIT, Duration.ofSeconds(1))).build();
-        log.info("向量化执行器初始化完成，当前使用：{}，QPS限制：{}",
+        this.embeddingConfig = embeddingConfig;
+        // RPM限制：每分钟最大请求数，使用令牌桶实现
+        this.bucket = Bucket.builder()
+            .addLimit(Bandwidth.simple(embeddingConfig.getRpmLimit(), Duration.ofMinutes(1)))
+            .build();
+        log.info("向量化执行器初始化完成，当前使用：{}，RPM限制：{}",
                  embeddingService.getProviderType().getDescription(),
-                 QPS_LIMIT);
+                 embeddingConfig.getRpmLimit());
     }
 
     /**
@@ -86,11 +89,11 @@ public class EmbeddingExecutor {
         }
 
         int totalSize = texts.size();
-        log.info("EmbeddingExecutor 开始向量化 {} 条文本，每批最多 {} 条，QPS 限制 {}", totalSize, MAX_BATCH_SIZE,
-                 QPS_LIMIT);
+        log.info("EmbeddingExecutor 开始向量化 {} 条文本，每批最多 {} 条，RPM 限制 {}", totalSize,
+                 embeddingConfig.getMaxBatchSize(), embeddingConfig.getRpmLimit());
 
         // 数据分片
-        List<List<String>> batches = BatchUtils.partition(texts, MAX_BATCH_SIZE);
+        List<List<String>> batches = BatchUtils.partition(texts, embeddingConfig.getMaxBatchSize());
         int batchCount = batches.size();
         log.info("数据已分为 {} 个批次", batchCount);
 

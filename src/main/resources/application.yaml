@@ -15,6 +15,8 @@ logging: # 日志配置
 
 embedding: # 文本向量化配置
   provider: qwen # 选择向量化提供商：zhipu（智谱）、qwen（千问）
+  max-batch-size: 10        # 每次API调用最大文本条数
+  rpm-limit: 60             # 每分钟最大请求数（RPM）
   qwen:
     api-key: your-qwen-api-key
     model: text-embedding-v4
