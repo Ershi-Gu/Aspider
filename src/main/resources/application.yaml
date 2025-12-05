@@ -29,6 +29,7 @@ processor: # 数据处理模块
     llm-summary: # LLM摘要提取配置
       enable: false                # 是否启用LLM总结
       target-length: 200           # 摘要目标长度
-      provider: qwen               # 提供商：qwen/zhipu/openai/deepseek
+      provider: qwen               # 提供商：qwen/gemini
       model: qwen3-max            # 模型名称
       api-key: your-llm-api-key    # API密钥
+      base-url:                    # 自定义请求api，Gemini支持使用第三方api，未填写则使用官方api

@@ -16,6 +16,7 @@ public enum LLMProviderEnum {
 
     QWEN("qwen", "通义千问"),
     ZHIPU("zhipu", "智谱AI"),
+    GEMINI("gemini", "Gemini"),
     ;
 
     private final String type;

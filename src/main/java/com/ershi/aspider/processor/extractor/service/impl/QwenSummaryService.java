@@ -33,14 +33,6 @@ public class QwenSummaryService implements LLMSummaryService {
 
     private static final Logger log = LoggerFactory.getLogger(QwenSummaryService.class);
 
-    /** 摘要提取prompt */
-    private static final String SUMMARY_PROMPT_TEMPLATE =
-        "请将以下文章内容总结为%d字左右的摘要，要求：\n" +
-            "1. 保留核心信息和关键数据\n" +
-            "2. 使用简洁的语言\n" +
-            "3. 只输出摘要内容，不要添加任何额外说明\n\n" +
-            "文章内容：\n%s";
-
     private final ContentExtractionConfig config;
 
     /** 生成模型 */
@@ -69,7 +61,8 @@ public class QwenSummaryService implements LLMSummaryService {
         }
 
         try {
-            String prompt = String.format(SUMMARY_PROMPT_TEMPLATE, targetLength, content);
+            String prompt = String.format(ContentExtractionConfig.SUMMARY_PROMPT_TEMPLATE,
+                                          targetLength, content);
 
             // 问答内容编制
             Message userMsg = Message.builder()
