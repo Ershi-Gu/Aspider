@@ -1,0 +1,71 @@
+package com.ershi.aspider.orchestration.service;
+
+import com.ershi.aspider.datasource.domain.SectorMoneyFlow;
+import com.ershi.aspider.datasource.domain.SectorTypeEnum;
+import com.ershi.aspider.datasource.provider.SectorMoneyFlowDataSource;
+import com.ershi.aspider.storage.elasticsearch.service.SectorMoneyFlowStorageService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+/**
+ * 板块数据编排服务
+ *
+ * @author Ershi-Gu.
+ * @since 2025-12-25
+ */
+@Service
+public class SectorDataService {
+
+    private static final Logger log = LoggerFactory.getLogger(SectorDataService.class);
+
+    private final SectorMoneyFlowDataSource sectorMoneyFlowDataSource;
+    private final SectorMoneyFlowStorageService sectorMoneyFlowStorageService;
+
+    public SectorDataService(SectorMoneyFlowDataSource sectorMoneyFlowDataSource,
+                             SectorMoneyFlowStorageService sectorMoneyFlowStorageService) {
+        this.sectorMoneyFlowDataSource = sectorMoneyFlowDataSource;
+        this.sectorMoneyFlowStorageService = sectorMoneyFlowStorageService;
+    }
+
+    /**
+     * 处理所有板块类型的资金流向数据
+     *
+     * @return 成功保存的数据条数
+     */
+    public int processAllSectorMoneyFlow() {
+        log.info("========== 开始处理所有板块资金流向数据 ==========");
+
+        List<SectorMoneyFlow> allData = sectorMoneyFlowDataSource.getAllSectorMoneyFlow();
+        if (allData.isEmpty()) {
+            log.warn("未获取到任何板块资金流向数据");
+            return 0;
+        }
+
+        int successCount = sectorMoneyFlowStorageService.batchSaveToEs(allData);
+        log.info("========== 板块资金流向数据处理完成，保存 {} 条数据 ==========", successCount);
+        return successCount;
+    }
+
+    /**
+     * 处理指定板块类型的资金流向数据
+     *
+     * @param sectorType 板块类型
+     * @return 成功保存的数据条数
+     */
+    public int processSectorMoneyFlow(SectorTypeEnum sectorType) {
+        log.info("========== 开始处理{}资金流向数据 ==========", sectorType.getDesc());
+
+        List<SectorMoneyFlow> data = sectorMoneyFlowDataSource.getSectorMoneyFlow(sectorType);
+        if (data.isEmpty()) {
+            log.warn("未获取到{}资金流向数据", sectorType.getDesc());
+            return 0;
+        }
+
+        int successCount = sectorMoneyFlowStorageService.batchSaveToEs(data);
+        log.info("========== {}资金流向数据处理完成，保存 {} 条数据 ==========", sectorType.getDesc(), successCount);
+        return successCount;
+    }
+}
