@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class FinancialArticleCleaner {
 
     private static final Logger log = LoggerFactory.getLogger(FinancialArticleCleaner.class);
-    private static final String NEWS_DATA_INDEX = "news_data_items";
+    private static final String NEWS_DATA_INDEX = "financial_article";
 
     private final ElasticsearchClient elasticsearchClient;
 

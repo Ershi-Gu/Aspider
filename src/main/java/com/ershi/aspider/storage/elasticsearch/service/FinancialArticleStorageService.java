@@ -3,6 +3,7 @@ package com.ershi.aspider.storage.elasticsearch.service;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.BulkRequest;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
+import co.elastic.clients.elasticsearch.core.DeleteByQueryResponse;
 import co.elastic.clients.elasticsearch.core.bulk.BulkResponseItem;
 import com.ershi.aspider.datasource.domain.FinancialArticle;
 import org.slf4j.Logger;
@@ -10,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -23,7 +26,7 @@ public class FinancialArticleStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(FinancialArticleStorageService.class);
 
-    private static final String NEWS_DATA_INDEX = "news_data_items";
+    private static final String NEWS_DATA_INDEX = "financial_article";
 
     private final ElasticsearchClient elasticsearchClient;
 
@@ -83,6 +86,39 @@ public class FinancialArticleStorageService {
         } catch (IOException e) {
             log.error("批量保存到ES失败", e);
             throw new RuntimeException("批量保存到ES失败", e);
+        }
+    }
+
+    /**
+     * 删除指定时间之前的过期新闻数据
+     *
+     * @param beforeTime 删除此时间之前的数据
+     * @return 删除的数据条数
+     */
+    public long deleteByPublishTimeBefore(LocalDateTime beforeTime) {
+        String timeStr = beforeTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        log.info("开始清理 {} 之前的过期新闻数据", timeStr);
+
+        try {
+            DeleteByQueryResponse response = elasticsearchClient.deleteByQuery(d -> d
+                .index(NEWS_DATA_INDEX)
+                .query(q -> q
+                    .range(r -> r
+                        .date(dr -> dr
+                            .field("publishTime")
+                            .lt(timeStr)
+                        )
+                    )
+                )
+            );
+
+            long deleted = response.deleted() != null ? response.deleted() : 0;
+            log.info("过期新闻数据清理完成，共删除 {} 条数据", deleted);
+            return deleted;
+
+        } catch (IOException e) {
+            log.error("清理过期新闻数据失败", e);
+            throw new RuntimeException("清理过期新闻数据失败", e);
         }
     }
 }
