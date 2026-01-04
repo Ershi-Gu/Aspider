@@ -86,22 +86,25 @@ FinancialArticle
 
 ```
 SectorMoneyFlow
-├── uniqueId           # 唯一标识 (sectorCode + date 的MD5)
-├── sectorCode         # 板块代码 (如 BK0477)
-├── sectorName         # 板块名称 (如 半导体)
-├── sectorType         # 板块类型 (INDUSTRY/CONCEPT/REGION)
-├── tradeDate          # 交易日期
-├── changePercent      # 涨跌幅(%)
-├── mainNetInflow      # 主力净流入(元)
-├── mainNetInflowRatio # 主力净流入占比(%)
-├── superLargeInflow   # 超大单净流入
-├── largeInflow        # 大单净流入
-├── mediumInflow       # 中单净流入
-├── smallInflow        # 小单净流入
-├── leadStock          # 领涨股票代码
-├── leadStockName      # 领涨股票名称
-├── companyCount       # 成分股数量
-└── crawlTime          # 爬取时间
+├── uniqueId              # 唯一标识 (sectorCode + tradeDate 的MD5)
+├── sectorCode            # 板块代码 (如 BK0477)
+├── sectorName            # 板块名称 (如 半导体)
+├── sectorType            # 板块类型 (INDUSTRY/CONCEPT)
+├── tradeDate             # 交易日期
+├── changePercent         # 涨跌幅(%)
+├── mainNetInflow         # 主力净流入(元)
+├── mainNetInflowRatio    # 主力净流入占比(%)
+├── superLargeInflow      # 超大单净流入(元)
+├── superLargeInflowRatio # 超大单净流入占比(%)
+├── largeInflow           # 大单净流入(元)
+├── largeInflowRatio      # 大单净流入占比(%)
+├── mediumInflow          # 中单净流入(元)
+├── mediumInflowRatio     # 中单净流入占比(%)
+├── smallInflow           # 小单净流入(元)
+├── smallInflowRatio      # 小单净流入占比(%)
+├── leadStock             # 领涨股票代码
+├── leadStockName         # 领涨股票名称
+└── crawlTime             # 爬取时间
 ```
 
 #### SectorQuote（板块行情）
