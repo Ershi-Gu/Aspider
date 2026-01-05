@@ -1,11 +1,14 @@
 package com.ershi.aspider;
 
 import com.ershi.aspider.datasource.domain.SectorMoneyFlow;
+import com.ershi.aspider.datasource.domain.SectorQuote;
 import com.ershi.aspider.datasource.domain.SectorTypeEnum;
 import com.ershi.aspider.datasource.provider.EastMoneySectorMoneyFlowDS;
+import com.ershi.aspider.datasource.provider.EastMoneySectorQuoteDS;
 import com.ershi.aspider.job.SectorMoneyFlowDataJob;
 import com.ershi.aspider.orchestration.service.SectorDataService;
 import com.ershi.aspider.storage.elasticsearch.service.SectorMoneyFlowStorageService;
+import com.ershi.aspider.storage.elasticsearch.service.SectorQuoteStorageService;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +35,14 @@ public class SectorMoneyFlowTest {
 
     @Resource
     private SectorMoneyFlowDataJob sectorMoneyFlowDataJob;
+
+    @Resource
+    private EastMoneySectorQuoteDS sectorQuoteDS;
+
+    @Resource
+    private SectorQuoteStorageService quoteStorageService;
+
+    // ==================== 资金流向测试 ====================
 
     /**
      * 测试数据源获取 - 行业板块
@@ -90,5 +101,78 @@ public class SectorMoneyFlowTest {
     @Test
     public void testSectorMoneyFlowJob() {
         sectorMoneyFlowDataJob.processAllSectorMoneyFlow();
+    }
+
+    // ==================== 板块行情测试 ====================
+
+    /**
+     * 测试板块行情数据源 - 行业板块
+     */
+    @Test
+    public void testGetSectorQuote() {
+        List<SectorQuote> data = sectorQuoteDS.getSectorQuote(SectorTypeEnum.INDUSTRY);
+        System.out.println("行业板块行情数量: " + data.size());
+
+        if (!data.isEmpty()) {
+            SectorQuote first = data.get(0);
+            System.out.printf("示例: %s, 收盘价: %s, 涨跌幅: %s%%, 成交额: %s%n",
+                first.getSectorName(), first.getClosePrice(), first.getChangePercent(), first.getAmount());
+        }
+    }
+
+    /**
+     * 测试板块行情数据源 - 概念板块
+     */
+    @Test
+    public void testGetConceptSectorQuote() {
+        List<SectorQuote> data = sectorQuoteDS.getSectorQuote(SectorTypeEnum.CONCEPT);
+        System.out.println("概念板块行情数量: " + data.size());
+
+        if (!data.isEmpty()) {
+            SectorQuote first = data.get(0);
+            System.out.printf("示例: %s, 收盘价: %s, 涨跌幅: %s%%, 成交额: %s%n",
+                first.getSectorName(), first.getClosePrice(), first.getChangePercent(), first.getAmount());
+        }
+    }
+
+    /**
+     * 测试板块行情保存到ES（需要先创建索引）
+     */
+    @Test
+    public void testSaveQuoteToEs() {
+        List<SectorQuote> data = sectorQuoteDS.getAllSectorQuote();
+        int count = quoteStorageService.batchSaveToEs(data);
+        System.out.println("行情数据保存成功: " + count);
+    }
+
+    /**
+     * 测试编排服务 - 处理所有板块行情数据
+     * 注意：运行前请先创建ES索引
+     */
+    @Test
+    public void testProcessAllSectorQuote() {
+        int count = sectorDataService.processAllSectorQuote();
+        System.out.println("成功保存行情数据条数: " + count);
+    }
+
+    /**
+     * 测试行情定时任务手动触发
+     * 注意：运行前请先创建ES索引
+     */
+    @Test
+    public void testSectorQuoteJob() {
+        sectorMoneyFlowDataJob.processAllSectorQuote();
+    }
+
+    // ==================== 综合测试 ====================
+
+    /**
+     * 测试同时处理资金流向和行情数据
+     * 注意：运行前请先创建所有ES索引
+     */
+    @Test
+    public void testProcessAllSectorData() {
+        int count = sectorDataService.processAllSectorData();
+        System.out.println("成功保存全部数据条数: " + count);
     }
 }

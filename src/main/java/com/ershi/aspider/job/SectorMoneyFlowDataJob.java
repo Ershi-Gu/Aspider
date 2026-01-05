@@ -8,13 +8,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 板块资金流向数据定时采集任务
+ * 板块数据定时采集任务
  * <p>
  * A股交易时间：9:30-11:30, 13:00-15:00
  * <p>
  * 采集策略：
- * 1. 盘中实时采集：交易时段每30分钟采集一次，用于实时分析
- * 2. 收盘后采集：15:30采集当日完整数据，确保数据完整性
+ * 1. 资金流向 - 盘中实时采集：交易时段每30分钟采集一次，用于实时分析
+ * 2. 资金流向 - 收盘后采集：15:30采集当日完整数据
+ * 3. 板块行情 - 收盘后采集：15:35采集当日行情数据（日K数据）
  *
  * @author Ershi-Gu.
  * @since 2025-12-25
@@ -29,6 +30,8 @@ public class SectorMoneyFlowDataJob {
     public SectorMoneyFlowDataJob(SectorDataService sectorDataService) {
         this.sectorDataService = sectorDataService;
     }
+
+    // ==================== 资金流向定时任务 ====================
 
     /**
      * 盘中实时采集：交易时段每30分钟执行
@@ -55,20 +58,42 @@ public class SectorMoneyFlowDataJob {
     }
 
     /**
-     * 收盘后采集：每日15:30执行，确保当日数据完整
+     * 收盘后采集资金流向：每日15:30执行
      */
     @Scheduled(cron = "0 30 15 * * MON-FRI")
-    public void scheduledAfterMarketClose() {
+    public void scheduledMoneyFlowAfterMarketClose() {
         log.info("收盘采集启动：开始采集当日完整板块资金流向数据");
 
         try {
             int savedCount = sectorDataService.processAllSectorMoneyFlow();
-            log.info("收盘采集完成，成功保存 {} 条数据", savedCount);
+            log.info("收盘资金流向采集完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("收盘采集失败", e);
+            log.error("收盘资金流向采集失败", e);
         }
     }
+
+    // ==================== 板块行情定时任务 ====================
+
+    /**
+     * 收盘后采集板块行情：每日15:35执行
+     * <p>
+     * 板块行情为日K数据，只需收盘后采集一次
+     */
+    @Scheduled(cron = "0 35 15 * * MON-FRI")
+    public void scheduledQuoteAfterMarketClose() {
+        log.info("收盘采集启动：开始采集当日板块行情数据");
+
+        try {
+            int savedCount = sectorDataService.processAllSectorQuote();
+            log.info("收盘行情采集完成，成功保存 {} 条数据", savedCount);
+
+        } catch (Exception e) {
+            log.error("收盘行情采集失败", e);
+        }
+    }
+
+    // ==================== 手动触发方法 ====================
 
     /**
      * 手动触发：采集所有板块资金流向数据
@@ -78,6 +103,36 @@ public class SectorMoneyFlowDataJob {
 
         try {
             int savedCount = sectorDataService.processAllSectorMoneyFlow();
+            log.info("手动触发完成，成功保存 {} 条数据", savedCount);
+
+        } catch (Exception e) {
+            log.error("手动触发失败", e);
+        }
+    }
+
+    /**
+     * 手动触发：采集所有板块行情数据
+     */
+    public void processAllSectorQuote() {
+        log.info("手动触发：开始采集所有板块行情数据");
+
+        try {
+            int savedCount = sectorDataService.processAllSectorQuote();
+            log.info("手动触发完成，成功保存 {} 条数据", savedCount);
+
+        } catch (Exception e) {
+            log.error("手动触发失败", e);
+        }
+    }
+
+    /**
+     * 手动触发：采集所有板块数据（资金流向 + 行情）
+     */
+    public void processAllSectorData() {
+        log.info("手动触发：开始采集所有板块数据");
+
+        try {
+            int savedCount = sectorDataService.processAllSectorData();
             log.info("手动触发完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
