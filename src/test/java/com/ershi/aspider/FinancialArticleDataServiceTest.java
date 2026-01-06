@@ -58,8 +58,59 @@ public class FinancialArticleDataServiceTest {
     @Test
     public void testDeleteByPublishTimeBefore() {
         // 删除7天前的数据（测试用，可调整）
-        LocalDateTime expireTime = LocalDateTime.now().minusDays(7);
+        LocalDateTime expireTime = LocalDateTime.now().minusDays(1);
         long deletedCount = financialArticleStorageService.deleteByPublishTimeBefore(expireTime);
         System.out.println("清理 " + expireTime + " 之前的数据，共删除: " + deletedCount + " 条");
+    }
+
+    /**
+     * 测试统计未向量化数据数量
+     */
+    @Test
+    public void testCountUnprocessed() {
+        long count = financialArticleStorageService.countUnprocessed();
+        System.out.println("未向量化数据数量: " + count);
+    }
+
+    /**
+     * 测试查询未向量化的数据
+     */
+    @Test
+    public void testFindUnprocessed() {
+        List<FinancialArticle> unprocessedList = financialArticleStorageService.findUnprocessed(10);
+        System.out.println("查询到未向量化数据: " + unprocessedList.size() + " 条");
+        for (FinancialArticle article : unprocessedList) {
+            System.out.println("  - " + article.getTitle() + " | processed=" + article.getProcessed());
+        }
+    }
+
+    /**
+     * 测试按需向量化处理（单批次）
+     * 处理指定数量的未向量化数据
+     */
+    @Test
+    public void testProcessUnvectorizedData() {
+        int batchSize = 5;  // 每批处理5条
+        int processedCount = financialArticleDataService.processUnvectorizedData(batchSize);
+        System.out.println("按需向量化处理完成，本批次处理: " + processedCount + " 条");
+    }
+
+    /**
+     * 测试处理所有未向量化数据（循环处理直到全部完成）
+     */
+    @Test
+    public void testProcessAllUnvectorizedData() {
+        int batchSize = 10;  // 每批处理10条
+        int totalProcessed = financialArticleDataService.processAllUnvectorizedData(batchSize);
+        System.out.println("全部向量化处理完成，共处理: " + totalProcessed + " 条");
+    }
+
+    /**
+     * 测试获取未向量化数据统计（通过编排服务）
+     */
+    @Test
+    public void testCountUnvectorizedData() {
+        long count = financialArticleDataService.countUnvectorizedData();
+        System.out.println("未向量化数据数量（编排服务）: " + count);
     }
 }

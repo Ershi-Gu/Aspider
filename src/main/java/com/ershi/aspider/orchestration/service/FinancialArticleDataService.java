@@ -160,5 +160,65 @@ public class FinancialArticleDataService {
             throw new RuntimeException("向量化失败", e);
         }
     }
+
+    /**
+     * 按需向量化：查询未处理数据并进行向量化
+     *
+     * @param batchSize 每批处理数量
+     * @return 成功处理的数据条数
+     */
+    public int processUnvectorizedData(int batchSize) {
+        log.info("========== 开始按需向量化处理，批次大小：{} ==========", batchSize);
+
+        // 查询未向量化的数据
+        List<FinancialArticle> unprocessedData = storageService.findUnprocessed(batchSize);
+        if (unprocessedData.isEmpty()) {
+            log.info("无需处理，所有数据已向量化");
+            return 0;
+        }
+
+        // 执行向量化
+        embedData(unprocessedData);
+
+        // 更新到ES（包含向量和processed状态）
+        int successCount = storageService.batchUpdateVectors(unprocessedData);
+
+        log.info("========== 按需向量化完成，成功处理 {} 条数据 ==========", successCount);
+        return successCount;
+    }
+
+    /**
+     * 处理所有未向量化数据（循环处理直到全部完成）
+     *
+     * @param batchSize 每批处理数量
+     * @return 总共处理的数据条数
+     */
+    public int processAllUnvectorizedData(int batchSize) {
+        log.info("========== 开始处理所有未向量化数据 ==========");
+
+        int totalProcessed = 0;
+        int processed;
+
+        do {
+            processed = processUnvectorizedData(batchSize);
+            totalProcessed += processed;
+
+            if (processed > 0) {
+                log.info("已处理 {} 条，累计处理 {} 条", processed, totalProcessed);
+            }
+        } while (processed > 0);
+
+        log.info("========== 全部处理完成，共处理 {} 条数据 ==========", totalProcessed);
+        return totalProcessed;
+    }
+
+    /**
+     * 获取未向量化数据数量
+     *
+     * @return 未向量化数据数量
+     */
+    public long countUnvectorizedData() {
+        return storageService.countUnprocessed();
+    }
 }
 
