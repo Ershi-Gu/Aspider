@@ -165,8 +165,7 @@ public class EmbeddingExecutor {
             return vectors;
 
         } catch (Exception e) {
-            log.error("批次 [{}/{}] 向量化失败", batchIndex + 1, totalBatches,
-                      e);
+            // 只抛出，不打印，让最外层统一处理
             throw new RuntimeException("批次向量化失败", e);
         }
     }
