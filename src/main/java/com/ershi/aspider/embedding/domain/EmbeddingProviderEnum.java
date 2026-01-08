@@ -16,6 +16,7 @@ public enum EmbeddingProviderEnum {
 
     ZHIPU("zhipu", "智谱AI"),
     QWEN("qwen", "千问"),
+    OPENAI("openai", "OpenAI兼容"),
     ;
 
     private final String type;

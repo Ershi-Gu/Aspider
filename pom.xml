@@ -96,6 +96,12 @@
             <artifactId>google-genai</artifactId>
             <version>1.0.0</version>
         </dependency>
+        <!--openai-java支持-->
+        <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java</artifactId>
+            <version>0.31.0</version>
+        </dependency>
 
         <!-- lombok -->
         <dependency>

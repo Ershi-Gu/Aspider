@@ -27,6 +27,9 @@ public class FinancialArticleDataService {
 
     private static final Logger log = LoggerFactory.getLogger(FinancialArticleDataService.class);
 
+    /** 默认查询批次大小 */
+    private static final int DEFAULT_QUERY_BATCH_SIZE = 500;
+
     private final FinancialArticleDSFactory financialArticleDSFactory;
     private final FinancialArticleCleaner financialArticleCleaner;
     private final ContentExtractor contentExtractor;
@@ -211,6 +214,16 @@ public class FinancialArticleDataService {
         log.info("========== 全部处理完成，共处理 {} 条数据 ==========", totalProcessed);
         return totalProcessed;
     }
+
+    /**
+     * 处理所有未向量化数据（使用默认批次大小）
+     *
+     * @return 总共处理的数据条数
+     */
+    public int processAllUnvectorizedData() {
+        return processAllUnvectorizedData(DEFAULT_QUERY_BATCH_SIZE);
+    }
+
 
     /**
      * 获取未向量化数据数量

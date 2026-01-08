@@ -77,7 +77,7 @@ public class FinancialArticleDataServiceTest {
      */
     @Test
     public void testFindUnprocessed() {
-        List<FinancialArticle> unprocessedList = financialArticleStorageService.findUnprocessed(10);
+        List<FinancialArticle> unprocessedList = financialArticleStorageService.findUnprocessed(100);
         System.out.println("查询到未向量化数据: " + unprocessedList.size() + " 条");
         for (FinancialArticle article : unprocessedList) {
             System.out.println("  - " + article.getTitle() + " | processed=" + article.getProcessed());

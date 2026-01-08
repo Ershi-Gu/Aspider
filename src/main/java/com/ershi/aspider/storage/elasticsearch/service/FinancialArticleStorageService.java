@@ -239,6 +239,56 @@ public class FinancialArticleStorageService {
     }
 
     /**
+     * 查询最近N天内的新闻数据
+     *
+     * @param days 天数
+     * @param size 查询数量限制
+     * @return 新闻列表
+     */
+    public List<FinancialArticle> findRecentByDays(int days, int size) {
+        LocalDateTime startTime = LocalDateTime.now().minusDays(days);
+        log.info("开始查询最近 {} 天的新闻数据，起始时间：{}", days, startTime);
+
+        try {
+            SearchResponse<FinancialArticle> response = elasticsearchClient.search(s -> s
+                    .index(NEWS_DATA_INDEX)
+                    .query(q -> q
+                        .range(r -> r
+                            .date(dr -> dr
+                                .field("publishTime")
+                                .gte(startTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                            )
+                        )
+                    )
+                    .size(size)
+                    .sort(so -> so
+                        .field(f -> f
+                            .field("publishTime")
+                            .order(co.elastic.clients.elasticsearch._types.SortOrder.Desc)
+                        )
+                    ),
+                FinancialArticle.class
+            );
+
+            List<FinancialArticle> result = new ArrayList<>();
+            for (Hit<FinancialArticle> hit : response.hits().hits()) {
+                if (hit.source() != null) {
+                    FinancialArticle article = hit.source();
+                    article.setUniqueId(hit.id());
+                    result.add(article);
+                }
+            }
+
+            log.info("查询到 {} 条新闻数据", result.size());
+            return result;
+
+        } catch (IOException e) {
+            log.error("查询新闻数据失败", e);
+            throw new RuntimeException("查询新闻数据失败", e);
+        }
+    }
+
+    /**
      * 统计未向量化的数据数量
      *
      * @return 未向量化数据数量
