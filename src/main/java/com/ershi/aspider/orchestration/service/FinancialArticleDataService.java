@@ -27,9 +27,6 @@ public class FinancialArticleDataService {
 
     private static final Logger log = LoggerFactory.getLogger(FinancialArticleDataService.class);
 
-    /** 默认查询批次大小 */
-    private static final int DEFAULT_QUERY_BATCH_SIZE = 500;
-
     private final FinancialArticleDSFactory financialArticleDSFactory;
     private final FinancialArticleCleaner financialArticleCleaner;
     private final ContentExtractor contentExtractor;
@@ -61,9 +58,9 @@ public class FinancialArticleDataService {
     }
 
     /**
-     * 处理指定数据源的新闻数据，用于定时抓取场景，不执行摘要提取和向量化
+     * 处理指定数据源的新闻数据（采集即向量化）
      */
-    public int processFinancialArticleRawOnly(FinancialArticleDSTypeEnum sourceType) {
+    public int processFinancialArticle(FinancialArticleDSTypeEnum sourceType) {
         log.info("========== 开始处理数据源 [{}] ==========", sourceType.getDesc());
 
         List<FinancialArticle> financialArticles = fetchFromDataSource(sourceType);
@@ -76,23 +73,29 @@ public class FinancialArticleDataService {
     }
 
     /**
-     * 原始数据处理管道
+     * 采集即向量化处理管道
+     * <p>
+     * 流程：数据清洗 → 摘要提取 → 向量化 → 持久化
      */
     private int executePipeline(List<FinancialArticle> financialArticle) {
-        // 数据清洗
+        // 1. 数据清洗
         List<FinancialArticle> cleanedData = financialArticleCleaner.clean(financialArticle);
         if (cleanedData.isEmpty()) {
             log.warn("清洗后无有效数据");
             return 0;
         }
+        log.info("[Step 1/3] 数据清洗完成，有效数据 {} 条", cleanedData.size());
 
-        // 标记为未向量化处理
-        cleanedData.forEach(item -> item.setProcessed(false));
+        // 2. 摘要提取 + 向量化
+        embedData(cleanedData);
+        log.info("[Step 2/3] 摘要提取和向量化完成");
 
-        // 持久化
+        // 3. 标记为已处理并持久化
+        cleanedData.forEach(item -> item.setProcessed(true));
         int successCount = storageService.batchSaveToEs(cleanedData);
+        log.info("[Step 3/3] 持久化完成，成功保存 {} 条数据", successCount);
 
-        log.info("========== [阶段一] 完成，保存 {} 条原始数据 ==========", successCount);
+        log.info("========== 采集即向量化流程完成 ==========");
         return successCount;
     }
 
@@ -164,74 +167,5 @@ public class FinancialArticleDataService {
         }
     }
 
-    /**
-     * 按需向量化：查询未处理数据并进行向量化
-     *
-     * @param batchSize 每批处理数量
-     * @return 成功处理的数据条数
-     */
-    public int processUnvectorizedData(int batchSize) {
-        log.info("========== 开始按需向量化处理，批次大小：{} ==========", batchSize);
-
-        // 查询未向量化的数据
-        List<FinancialArticle> unprocessedData = storageService.findUnprocessed(batchSize);
-        if (unprocessedData.isEmpty()) {
-            log.info("无需处理，所有数据已向量化");
-            return 0;
-        }
-
-        // 执行向量化
-        embedData(unprocessedData);
-
-        // 更新到ES（包含向量和processed状态）
-        int successCount = storageService.batchUpdateVectors(unprocessedData);
-
-        log.info("========== 按需向量化完成，成功处理 {} 条数据 ==========", successCount);
-        return successCount;
-    }
-
-    /**
-     * 处理所有未向量化数据（循环处理直到全部完成）
-     *
-     * @param batchSize 每批处理数量
-     * @return 总共处理的数据条数
-     */
-    public int processAllUnvectorizedData(int batchSize) {
-        log.info("========== 开始处理所有未向量化数据 ==========");
-
-        int totalProcessed = 0;
-        int processed;
-
-        do {
-            processed = processUnvectorizedData(batchSize);
-            totalProcessed += processed;
-
-            if (processed > 0) {
-                log.info("已处理 {} 条，累计处理 {} 条", processed, totalProcessed);
-            }
-        } while (processed > 0);
-
-        log.info("========== 全部处理完成，共处理 {} 条数据 ==========", totalProcessed);
-        return totalProcessed;
-    }
-
-    /**
-     * 处理所有未向量化数据（使用默认批次大小）
-     *
-     * @return 总共处理的数据条数
-     */
-    public int processAllUnvectorizedData() {
-        return processAllUnvectorizedData(DEFAULT_QUERY_BATCH_SIZE);
-    }
-
-
-    /**
-     * 获取未向量化数据数量
-     *
-     * @return 未向量化数据数量
-     */
-    public long countUnvectorizedData() {
-        return storageService.countUnprocessed();
-    }
 }
 

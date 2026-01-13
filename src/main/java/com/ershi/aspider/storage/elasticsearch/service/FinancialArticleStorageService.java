@@ -92,151 +92,6 @@ public class FinancialArticleStorageService {
         }
     }
 
-    /**
-     * 删除指定时间之前的过期新闻数据
-     *
-     * @param beforeTime 删除此时间之前的数据
-     * @return 删除的数据条数
-     */
-    public long deleteByPublishTimeBefore(LocalDateTime beforeTime) {
-        String timeStr = beforeTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        log.info("开始清理 {} 之前的过期新闻数据", timeStr);
-
-        try {
-            DeleteByQueryResponse response = elasticsearchClient.deleteByQuery(d -> d
-                .index(NEWS_DATA_INDEX)
-                .query(q -> q
-                    .range(r -> r
-                        .date(dr -> dr
-                            .field("publishTime")
-                            .lt(timeStr)
-                        )
-                    )
-                )
-            );
-
-            long deleted = response.deleted() != null ? response.deleted() : 0;
-            log.info("过期新闻数据清理完成，共删除 {} 条数据", deleted);
-            return deleted;
-
-        } catch (IOException e) {
-            log.error("清理过期新闻数据失败", e);
-            throw new RuntimeException("清理过期新闻数据失败", e);
-        }
-    }
-
-    /**
-     * 查询未向量化的新闻数据
-     *
-     * @param size 查询数量
-     * @return 未向量化的新闻数据列表
-     */
-    public List<FinancialArticle> findUnprocessed(int size) {
-        log.info("开始查询未向量化的新闻数据，数量限制：{}", size);
-
-        try {
-            SearchResponse<FinancialArticle> response = elasticsearchClient.search(s -> s
-                    .index(NEWS_DATA_INDEX)
-                    .query(q -> q
-                        .bool(b -> b
-                            .should(sh -> sh
-                                .term(t -> t
-                                    .field("processed")
-                                    .value(false)
-                                )
-                            )
-                            .should(sh -> sh
-                                .bool(nb -> nb
-                                    .mustNot(mn -> mn
-                                        .exists(e -> e.field("processed"))
-                                    )
-                                )
-                            )
-                            .minimumShouldMatch("1")
-                        )
-                    )
-                    .size(size)
-                    .sort(so -> so
-                        .field(f -> f
-                            .field("publishTime")
-                            .order(co.elastic.clients.elasticsearch._types.SortOrder.Desc)
-                        )
-                    ),
-                FinancialArticle.class
-            );
-
-            List<FinancialArticle> result = new ArrayList<>();
-            for (Hit<FinancialArticle> hit : response.hits().hits()) {
-                if (hit.source() != null) {
-                    FinancialArticle article = hit.source();
-                    article.setUniqueId(hit.id());
-                    result.add(article);
-                }
-            }
-
-            log.info("查询到 {} 条未向量化数据", result.size());
-            return result;
-
-        } catch (IOException e) {
-            log.error("查询未向量化数据失败", e);
-            throw new RuntimeException("查询未向量化数据失败", e);
-        }
-    }
-
-    /**
-     * 批量更新向量化状态和向量数据
-     *
-     * @param articles 已向量化的新闻数据（包含向量）
-     * @return 成功更新的数据条数
-     */
-    public int batchUpdateVectors(List<FinancialArticle> articles) {
-        if (articles == null || articles.isEmpty()) {
-            log.warn("无数据需要更新");
-            return 0;
-        }
-
-        log.info("开始批量更新 {} 条数据的向量", articles.size());
-
-        try {
-            BulkRequest.Builder bulkBuilder = new BulkRequest.Builder();
-
-            for (FinancialArticle article : articles) {
-                // 标记为已处理
-                article.setProcessed(true);
-
-                bulkBuilder.operations(op -> op
-                    .update(u -> u
-                        .index(NEWS_DATA_INDEX)
-                        .id(article.getUniqueId())
-                        .action(a -> a
-                            .doc(article)
-                        )
-                    )
-                );
-            }
-
-            BulkResponse response = elasticsearchClient.bulk(bulkBuilder.build());
-
-            int successCount = 0;
-            int failureCount = 0;
-
-            for (BulkResponseItem item : response.items()) {
-                if (item.error() != null) {
-                    failureCount++;
-                    log.error("更新失败 [ID: {}]: {}", item.id(), item.error().reason());
-                } else {
-                    successCount++;
-                }
-            }
-
-            log.info("向量更新完成，成功: {}，失败: {}", successCount, failureCount);
-            return successCount;
-
-        } catch (IOException e) {
-            log.error("批量更新向量失败", e);
-            throw new RuntimeException("批量更新向量失败", e);
-        }
-    }
 
     /**
      * 查询最近N天内的新闻数据
@@ -289,44 +144,66 @@ public class FinancialArticleStorageService {
     }
 
     /**
-     * 统计未向量化的数据数量
+     * 分层清理过期新闻数据
+     * <p>
+     * 清理策略：
+     * - 90天前且重要性 < 3 的普通新闻：删除
+     * - 90天前且重要性 >= 3 的重要新闻：保留
      *
-     * @return 未向量化数据数量
+     * @param beforeTime 清理此时间之前的数据
+     * @param minImportance 最低保留重要性（低于此值的删除）
+     * @return 删除的数据条数
      */
-    public long countUnprocessed() {
+    public long deleteByTimeAndImportance(LocalDateTime beforeTime, int minImportance) {
+        String timeStr = beforeTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        log.info("开始分层清理 {} 之前、重要性 < {} 的过期新闻数据", timeStr, minImportance);
+
         try {
-            SearchResponse<FinancialArticle> response = elasticsearchClient.search(s -> s
-                    .index(NEWS_DATA_INDEX)
-                    .query(q -> q
-                        .bool(b -> b
-                            .should(sh -> sh
-                                .term(t -> t
-                                    .field("processed")
-                                    .value(false)
+            DeleteByQueryResponse response = elasticsearchClient.deleteByQuery(d -> d
+                .index(NEWS_DATA_INDEX)
+                .query(q -> q
+                    .bool(b -> b
+                        // 时间条件：指定时间之前
+                        .must(m -> m
+                            .range(r -> r
+                                .date(dr -> dr
+                                    .field("crawlTime")
+                                    .lt(timeStr)
                                 )
                             )
-                            .should(sh -> sh
-                                .bool(nb -> nb
-                                    .mustNot(mn -> mn
-                                        .exists(e -> e.field("processed"))
+                        )
+                        // 重要性条件：低于阈值 或 字段不存在
+                        .must(m -> m
+                            .bool(ib -> ib
+                                .should(sh -> sh
+                                    .range(r -> r
+                                        .number(nr -> nr
+                                            .field("importance")
+                                            .lt((double) minImportance)
+                                        )
                                     )
                                 )
+                                .should(sh -> sh
+                                    .bool(nb -> nb
+                                        .mustNot(mn -> mn
+                                            .exists(e -> e.field("importance"))
+                                        )
+                                    )
+                                )
+                                .minimumShouldMatch("1")
                             )
-                            .minimumShouldMatch("1")
                         )
                     )
-                    .size(0)
-                    .trackTotalHits(t -> t.enabled(true)),
-                FinancialArticle.class
+                )
             );
 
-            long count = response.hits().total() != null ? response.hits().total().value() : 0;
-            log.info("未向量化数据数量：{}", count);
-            return count;
+            long deleted = response.deleted() != null ? response.deleted() : 0;
+            log.info("分层清理完成，共删除 {} 条低重要性过期数据", deleted);
+            return deleted;
 
         } catch (IOException e) {
-            log.error("统计未向量化数据失败", e);
-            throw new RuntimeException("统计未向量化数据失败", e);
+            log.error("分层清理过期新闻数据失败", e);
+            throw new RuntimeException("分层清理过期新闻数据失败", e);
         }
     }
 }

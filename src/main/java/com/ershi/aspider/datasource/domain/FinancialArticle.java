@@ -45,7 +45,22 @@ public class FinancialArticle {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime crawlTime = LocalDateTime.now();
 
-    /** 是否已完成向量化处理 */
+    /**
+     * 重要性评分 1-5（用于冷数据筛选）
+     * <ul>
+     *   <li>5 - 重大：国家级政策、央行/证监会公告</li>
+     *   <li>4 - 重要：部委政策、行业重大事件</li>
+     *   <li>3 - 关注：地方政策、龙头企业动态</li>
+     *   <li>2 - 一般：行业新闻、市场评论</li>
+     *   <li>1 - 普通：资讯、快讯</li>
+     * </ul>
+     */
+    private Integer importance = 1;
+
+    /** 新闻类型：POLICY/EVENT/INDUSTRY/GENERAL */
+    private NewsTypeEnum newsType = NewsTypeEnum.GENERAL;
+
+    /** 是否已完成向量化处理（采集即向量化架构下，采集完成即为true） */
     private Boolean processed = false;
 
     /**

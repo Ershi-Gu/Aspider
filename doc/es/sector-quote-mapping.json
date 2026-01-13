@@ -1,0 +1,88 @@
+{
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 1,
+    "index": {
+      "max_result_window": 10000
+    }
+  },
+  "mappings": {
+    "properties": {
+      "uniqueId": {
+        "type": "keyword"
+      },
+      "sectorCode": {
+        "type": "keyword"
+      },
+      "sectorName": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 64
+          }
+        }
+      },
+      "sectorType": {
+        "type": "keyword"
+      },
+      "tradeDate": {
+        "type": "date",
+        "format": "yyyy-MM-dd||epoch_millis"
+      },
+      "openPrice": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "closePrice": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "highPrice": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "lowPrice": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "changePercent": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "changeAmount": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "turnoverRate": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "amount": {
+        "type": "double"
+      },
+      "volume": {
+        "type": "double"
+      },
+      "amplitude": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "companyCount": {
+        "type": "integer"
+      },
+      "riseCount": {
+        "type": "integer"
+      },
+      "fallCount": {
+        "type": "integer"
+      },
+      "crawlTime": {
+        "type": "date",
+        "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+      }
+    }
+  }
+}
