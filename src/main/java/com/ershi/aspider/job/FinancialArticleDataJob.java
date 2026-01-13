@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 
 /**
- * 定时收取财经数据
+ * 定时获取财经新闻数据job
  *
  * @author Ershi-Gu.
  * @since 2025-11-12
@@ -31,21 +31,6 @@ public class FinancialArticleDataJob {
                                    FinancialArticleStorageService financialArticleStorageService) {
         this.financialArticleDataService = financialArticleDataService;
         this.financialArticleStorageService = financialArticleStorageService;
-    }
-
-    /**
-     * 手动触发：持久化指定数据源的数据
-     */
-    public void processSpecificDataSource(FinancialArticleDSTypeEnum financialArticleDSTypeEnum) {
-        log.info("手动触发：持久化数据源 [{}]", financialArticleDSTypeEnum.getDesc());
-
-        try {
-            int savedCount = financialArticleDataService.processFinancialArticleRawOnly(financialArticleDSTypeEnum);
-            log.info("手动触发完成，成功保存 {} 条新数据", savedCount);
-
-        } catch (Exception e) {
-            log.error("手动触发失败", e);
-        }
     }
 
     /**
@@ -81,6 +66,21 @@ public class FinancialArticleDataJob {
 
         } catch (Exception e) {
             log.error("定时清理任务执行失败", e);
+        }
+    }
+
+    /**
+     * 手动触发：持久化指定数据源的数据
+     */
+    public void processSpecificDataSource(FinancialArticleDSTypeEnum financialArticleDSTypeEnum) {
+        log.info("手动触发：持久化数据源 [{}]", financialArticleDSTypeEnum.getDesc());
+
+        try {
+            int savedCount = financialArticleDataService.processFinancialArticleRawOnly(financialArticleDSTypeEnum);
+            log.info("手动触发完成，成功保存 {} 条新数据", savedCount);
+
+        } catch (Exception e) {
+            log.error("手动触发失败", e);
         }
     }
 
