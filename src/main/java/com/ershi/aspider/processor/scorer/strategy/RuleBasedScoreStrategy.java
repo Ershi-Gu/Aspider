@@ -30,8 +30,8 @@ public class RuleBasedScoreStrategy implements ArticleScoreStrategy {
     }
 
     @Override
-    public String getStrategyName() {
-        return "rule";
+    public ScoreStrategyType getStrategyType() {
+        return ScoreStrategyType.RULE;
     }
 
     @Override

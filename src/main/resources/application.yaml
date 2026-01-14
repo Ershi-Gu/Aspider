@@ -28,6 +28,8 @@ embedding: # 文本向量化配置
     api-key: your-openai-api-key
     model: Qwen3-Embedding-8B        # 模型名称                 # 向量维度
 processor: # 数据处理模块
+  scorer: # 文章评分配置
+    strategy: rule  # 评分策略：rule（规则）/ llm（大模型）
   content-extraction: # 文章数据摘要提取配置，用于提取长文本内容，输出摘要供后续操作
     short-text-threshold: 500      # 短文本阈值
     medium-text-threshold: 2000    # 中文本阈值

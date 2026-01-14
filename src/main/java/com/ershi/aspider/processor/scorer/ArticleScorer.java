@@ -4,6 +4,7 @@ import com.ershi.aspider.datasource.domain.FinancialArticle;
 import com.ershi.aspider.processor.scorer.config.ArticleScorerConfig;
 import com.ershi.aspider.processor.scorer.domain.ArticleScoreResult;
 import com.ershi.aspider.processor.scorer.strategy.ArticleScoreStrategy;
+import com.ershi.aspider.processor.scorer.strategy.ScoreStrategyType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -27,12 +28,12 @@ public class ArticleScorer {
     private static final Logger log = LoggerFactory.getLogger(ArticleScorer.class);
 
     private final ArticleScorerConfig config;
-    private final Map<String, ArticleScoreStrategy> strategyMap;
+    private final Map<ScoreStrategyType, ArticleScoreStrategy> strategyMap;
 
     public ArticleScorer(ArticleScorerConfig config, List<ArticleScoreStrategy> strategies) {
         this.config = config;
         this.strategyMap = strategies.stream()
-            .collect(Collectors.toMap(ArticleScoreStrategy::getStrategyName, Function.identity()));
+            .collect(Collectors.toMap(ArticleScoreStrategy::getStrategyType, Function.identity()));
 
         log.info("文章评分执行器初始化完成，可用策略: {}, 当前策略: {}",
             strategyMap.keySet(), config.getStrategy());
@@ -79,19 +80,19 @@ public class ArticleScorer {
      * 获取当前配置的策略
      */
     private ArticleScoreStrategy getStrategy() {
-        String strategyName = config.getStrategy();
-        ArticleScoreStrategy strategy = strategyMap.get(strategyName);
+        ScoreStrategyType strategyType = ScoreStrategyType.fromCode(config.getStrategy());
+        ArticleScoreStrategy strategy = strategyType != null ? strategyMap.get(strategyType) : null;
 
         if (strategy == null) {
-            log.warn("未找到策略 [{}]，使用默认规则策略", strategyName);
-            strategy = strategyMap.get("rule");
+            log.warn("未找到策略 [{}]，使用默认规则策略", config.getStrategy());
+            strategy = strategyMap.get(ScoreStrategyType.RULE);
         }
 
         return strategy;
     }
 
     /**
-     * 记录评分统计信息
+     * 记录评分统计信息，只作日志输出
      */
     private void logScoreStatistics(List<FinancialArticle> articles) {
         Map<Integer, Long> importanceStats = articles.stream()

@@ -18,11 +18,11 @@ import com.ershi.aspider.processor.scorer.domain.ArticleScoreResult;
 public interface ArticleScoreStrategy {
 
     /**
-     * 获取策略名称
+     * 获取策略类型
      *
-     * @return 策略名称（rule/llm）
+     * @return 策略类型枚举
      */
-    String getStrategyName();
+    ScoreStrategyType getStrategyType();
 
     /**
      * 对文章进行评分
