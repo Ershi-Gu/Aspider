@@ -1,7 +1,7 @@
 package com.ershi.aspider;
 
-import com.ershi.aspider.processor.cleaner.FinancialArticleCleaner;
-import com.ershi.aspider.processor.extractor.service.LLMSummaryExecutor;
+import com.ershi.aspider.data.processor.cleaner.FinancialArticleCleaner;
+import com.ershi.aspider.data.processor.extractor.service.LLMSummaryExecutor;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -221,80 +221,187 @@ SectorQuote
 
 ## 模块结构
 
+项目采用**两层架构**设计，清晰划分数据层与分析层职责：
+
+| 层级 | 包路径 | 职责 |
+|-----|-------|------|
+| **数据层** | `data.*` | 数据采集、处理、向量化、存储 |
+| **分析层** | `analysis.*` | 数据检索、Agent分析、报告生成 |
+| **接口层** | `api.*` | 对外REST接口 |
+| **通用层** | `common.*` | 配置、工具、异常处理 |
+
 ```
 com.ershi.aspider
-├── datasource                    # 数据源模块
-│   ├── domain
-│   │   ├── FinancialArticle.java              # 财经新闻
-│   │   ├── FinancialArticleDSTypeEnum.java    # 新闻数据源类型
-│   │   ├── SectorMoneyFlow.java               # 板块资金流向
-│   │   ├── SectorQuote.java                   # 板块行情
-│   │   └── SectorTypeEnum.java                # 板块类型枚举
-│   ├── provider
-│   │   ├── FinancialArticleDataSource.java    # 新闻数据源接口
-│   │   ├── EastMoneyFinancialArticleDS.java   # 东财新闻实现
-│   │   ├── SectorMoneyFlowDataSource.java     # 资金流向数据源接口
-│   │   ├── EastMoneySectorMoneyFlowDS.java    # 东财资金流向实现
-│   │   ├── SectorQuoteDataSource.java         # 板块行情数据源接口
-│   │   └── EastMoneySectorQuoteDS.java        # 东财板块行情实现
-│   └── service
-│       └── FinancialArticleDSFactory.java     # 新闻数据源工厂（板块数据无需工厂）
 │
-├── processor                     # 数据处理模块
-│   ├── cleaner                   # 数据清洗（去重、文本清理）
-│   └── extractor                 # 摘要提取（LLM摘要生成）
+├── data/                                    # ═══════【数据层】═══════
+│   │
+│   ├── datasource/                          # 数据源模块
+│   │   ├── domain/
+│   │   │   ├── FinancialArticle.java            # 财经新闻实体
+│   │   │   ├── FinancialArticleDSTypeEnum.java  # 新闻数据源类型
+│   │   │   ├── NewsTypeEnum.java                # 新闻类型枚举
+│   │   │   ├── SectorMoneyFlow.java             # 板块资金流向实体
+│   │   │   ├── SectorQuote.java                 # 板块行情实体
+│   │   │   └── SectorTypeEnum.java              # 板块类型枚举
+│   │   ├── provider/
+│   │   │   ├── FinancialArticleDataSource.java  # 新闻数据源接口
+│   │   │   ├── EastMoneyFinancialArticleDS.java # 东财新闻实现
+│   │   │   ├── SectorMoneyFlowDataSource.java   # 资金流向数据源接口
+│   │   │   ├── EastMoneySectorMoneyFlowDS.java  # 东财资金流向实现
+│   │   │   ├── SectorQuoteDataSource.java       # 板块行情数据源接口
+│   │   │   └── EastMoneySectorQuoteDS.java      # 东财板块行情实现
+│   │   └── service/
+│   │       └── FinancialArticleDSFactory.java   # 新闻数据源工厂
+│   │
+│   ├── processor/                           # 数据处理模块
+│   │   ├── cleaner/                         # 数据清洗（去重、文本清理）
+│   │   │   ├── FinancialArticleCleaner.java
+│   │   │   └── FinancialArticleClearEsDTO.java
+│   │   ├── extractor/                       # 摘要提取（LLM摘要生成）
+│   │   │   ├── ContentExtractor.java
+│   │   │   ├── config/
+│   │   │   ├── domain/
+│   │   │   ├── service/
+│   │   │   └── strategy/
+│   │   └── scorer/                          # 重要性评分
+│   │       ├── ArticleScorer.java
+│   │       ├── config/
+│   │       ├── domain/
+│   │       └── strategy/
+│   │
+│   ├── embedding/                           # 向量化模块
+│   │   ├── EmbeddingExecutor.java               # 向量化执行器
+│   │   ├── config/
+│   │   │   └── EmbeddingConfig.java
+│   │   ├── domain/
+│   │   │   └── EmbeddingProviderEnum.java
+│   │   └── service/
+│   │       ├── EmbeddingService.java            # Embedding服务接口
+│   │       └── impl/
+│   │           ├── QwenEmbeddingService.java    # 通义千问实现
+│   │           ├── ZhipuEmbeddingService.java   # 智谱实现
+│   │           └── OpenAiEmbeddingService.java  # OpenAI实现
+│   │
+│   ├── storage/                             # 存储模块
+│   │   └── elasticsearch/
+│   │       ├── config/
+│   │       │   └── ElasticsearchConfig.java
+│   │       └── service/
+│   │           ├── FinancialArticleStorageService.java  # 新闻存储+检索
+│   │           ├── SectorMoneyFlowStorageService.java   # 资金流向存储+检索
+│   │           └── SectorQuoteStorageService.java       # 板块行情存储+检索
+│   │
+│   ├── orchestration/                       # 数据编排模块
+│   │   └── service/
+│   │       ├── FinancialArticleDataService.java  # 新闻数据编排（采集→处理→存储）
+│   │       └── SectorDataService.java            # 板块数据编排
+│   │
+│   └── job/                                 # 定时任务模块
+│       ├── FinancialArticleDataJob.java         # 新闻采集+过期清理
+│       └── SectorMoneyFlowDataJob.java          # 板块数据采集
 │
-├── embedding                     # 向量化模块
-│   └── service                   # Embedding服务（通义千问、智谱等）
 │
-├── storage                       # 存储模块
-│   └── elasticsearch
-│       ├── FinancialArticleStorageService.java  # 新闻存储
-│       ├── SectorMoneyFlowStorageService.java   # 资金流向存储
-│       └── SectorQuoteStorageService.java       # 板块行情存储
+├── analysis/                                # ═══════【分析层】═══════
+│   │
+│   ├── retriever/                           # 数据检索模块
+│   │   ├── DataRetriever.java                   # 检索器接口
+│   │   ├── NewsRetriever.java                   # 新闻语义检索（向量KNN）
+│   │   ├── SectorDataRetriever.java             # 板块数据检索（结构化查询）
+│   │   └── domain/
+│   │       ├── NewsRetrievalResult.java         # 新闻检索结果
+│   │       └── SectorAnalysisData.java          # 板块分析数据（含聚合指标）
+│   │
+│   ├── agent/                               # Agent分析模块
+│   │   ├── core/
+│   │   │   ├── Agent.java                       # Agent接口
+│   │   │   ├── PolicyAgent.java                 # 政策分析Agent
+│   │   │   ├── SectorAgent.java                 # 板块分析Agent
+│   │   │   └── TrendAgent.java                  # 趋势研判Agent
+│   │   ├── prompt/
+│   │   │   ├── PromptTemplate.java              # Prompt模板接口
+│   │   │   ├── PolicyPromptTemplate.java        # 政策分析Prompt
+│   │   │   ├── SectorPromptTemplate.java        # 板块分析Prompt
+│   │   │   └── TrendPromptTemplate.java         # 趋势研判Prompt
+│   │   └── domain/
+│   │       ├── AnalysisRequest.java             # 分析请求
+│   │       ├── PolicyImpact.java                # 政策影响结果
+│   │       ├── SectorHeat.java                  # 板块热度结果
+│   │       └── TrendSignal.java                 # 趋势信号结果
+│   │
+│   ├── report/                              # 报告生成模块
+│   │   ├── ReportGeneratorService.java          # 报告生成服务
+│   │   └── domain/
+│   │       ├── AnalysisReport.java              # 完整分析报告
+│   │       ├── SignalCard.java                  # L1信号卡片
+│   │       ├── DataDashboard.java               # L2数据看板
+│   │       └── DetailAnalysis.java              # L3详细分析
+│   │
+│   └── orchestration/                       # 分析编排模块
+│       └── AnalysisAgentOrchestrator.java       # Agent编排器
 │
-├── orchestration                 # 编排模块
-│   └── service
-│       ├── FinancialArticleDataService.java     # 新闻数据编排
-│       └── SectorDataService.java               # 板块数据编排
 │
-├── agent                         # Agent分析模块
-│   ├── domain
-│   │   ├── AnalysisRequest.java       # 分析请求
-│   │   ├── AnalysisReport.java        # 分析报告
-│   │   ├── PolicyImpact.java          # 政策影响
-│   │   ├── SectorHeat.java            # 板块热度
-│   │   └── TrendSignal.java           # 趋势信号
-│   ├── core
-│   │   ├── Agent.java                 # Agent接口
-│   │   ├── PolicyAgent.java           # 政策分析Agent
-│   │   ├── SectorAgent.java           # 板块分析Agent
-│   │   └── TrendAgent.java            # 趋势研判Agent
-│   ├── prompt
-│   │   ├── PromptTemplate.java        # Prompt模板接口
-│   │   ├── PolicyPromptTemplate.java  # 政策分析Prompt
-│   │   ├── SectorPromptTemplate.java  # 板块分析Prompt
-│   │   └── TrendPromptTemplate.java   # 趋势研判Prompt
-│   ├── retriever
-│   │   ├── DataRetriever.java         # 数据检索接口
-│   │   ├── NewsRetriever.java         # 新闻语义检索
-│   │   └── SectorDataRetriever.java   # 板块数据检索
-│   └── service
-│       ├── AnalysisAgentOrchestrator.java  # Agent编排
-│       └── ReportGeneratorService.java     # 报告生成
+├── api/                                     # ═══════【接口层】═══════
+│   └── controller/
+│       ├── AnalysisController.java              # 分析接口（触发分析）
+│       └── ReportController.java                # 报告查询接口
 │
-├── api                           # 对外API
-│   └── controller
-│       ├── AnalysisController.java    # 分析接口
-│       └── ReportController.java      # 报告查询接口
 │
-├── job                           # 定时任务模块
-│   ├── FinancialArticleDataJob.java       # 新闻采集+过期清理
-│   └── SectorMoneyFlowDataJob.java        # 板块资金实时采集
-│
-└── common                        # 通用模块
-    ├── config                    # 配置类
-    └── util                      # 工具类
+└── common/                                  # ═══════【通用层】═══════
+    ├── config/
+    │   ├── ThreadPoolConfig.java                # 线程池配置
+    │   └── MyThreadFactory.java
+    ├── exception/
+    │   └── GlobalThreadUncaughtExceptionHandler.java
+    └── util/
+        ├── BatchUtils.java                      # 批处理工具
+        └── TextTruncateUtil.java                # 文本截断工具
+```
+
+### 层级依赖关系
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         api                                  │
+│                    (AnalysisController)                      │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ 调用
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       analysis                               │
+│  ┌───────────────┐    ┌───────────────┐    ┌─────────────┐  │
+│  │  orchestration │───▶│    agent      │───▶│   report    │  │
+│  └───────┬───────┘    └───────────────┘    └─────────────┘  │
+│          │                                                   │
+│          ▼                                                   │
+│  ┌───────────────┐                                          │
+│  │   retriever    │  ← 向量检索 + 结构化查询                  │
+│  └───────┬───────┘                                          │
+└──────────┼──────────────────────────────────────────────────┘
+           │ 调用
+           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                         data                                 │
+│  ┌─────────────┐    ┌───────────────┐    ┌───────────────┐  │
+│  │   storage    │◀───│ orchestration │◀───│     job       │  │
+│  └──────▲──────┘    └───────┬───────┘    └───────────────┘  │
+│         │                   │                                │
+│         │           ┌───────▼───────┐                       │
+│  ┌──────┴──────┐    │   processor    │                       │
+│  │  embedding   │◀───│ cleaner/      │                       │
+│  └─────────────┘    │ extractor/    │                       │
+│                     │ scorer        │                       │
+│                     └───────┬───────┘                       │
+│                             │                                │
+│                     ┌───────▼───────┐                       │
+│                     │  datasource    │  ← 东财API            │
+│                     └───────────────┘                       │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        common                                │
+│              (config / util / exception)                     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## 执行流程

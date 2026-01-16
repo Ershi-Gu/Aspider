@@ -1,14 +1,14 @@
 package com.ershi.aspider;
 
-import com.ershi.aspider.datasource.domain.SectorMoneyFlow;
-import com.ershi.aspider.datasource.domain.SectorQuote;
-import com.ershi.aspider.datasource.domain.SectorTypeEnum;
-import com.ershi.aspider.datasource.provider.EastMoneySectorMoneyFlowDS;
-import com.ershi.aspider.datasource.provider.EastMoneySectorQuoteDS;
-import com.ershi.aspider.job.SectorMoneyFlowDataJob;
-import com.ershi.aspider.orchestration.service.SectorDataService;
-import com.ershi.aspider.storage.elasticsearch.service.SectorMoneyFlowStorageService;
-import com.ershi.aspider.storage.elasticsearch.service.SectorQuoteStorageService;
+import com.ershi.aspider.data.datasource.domain.SectorMoneyFlow;
+import com.ershi.aspider.data.datasource.domain.SectorQuote;
+import com.ershi.aspider.data.datasource.domain.SectorTypeEnum;
+import com.ershi.aspider.data.datasource.provider.EastMoneySectorMoneyFlowDS;
+import com.ershi.aspider.data.datasource.provider.EastMoneySectorQuoteDS;
+import com.ershi.aspider.data.job.SectorMoneyFlowDataJob;
+import com.ershi.aspider.data.orchestration.service.SectorDataService;
+import com.ershi.aspider.data.storage.elasticsearch.service.SectorMoneyFlowStorageService;
+import com.ershi.aspider.data.storage.elasticsearch.service.SectorQuoteStorageService;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

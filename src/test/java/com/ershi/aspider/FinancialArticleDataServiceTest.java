@@ -1,12 +1,12 @@
 package com.ershi.aspider;
 
-import com.ershi.aspider.datasource.domain.FinancialArticleDSTypeEnum;
-import com.ershi.aspider.job.FinancialArticleDataJob;
-import com.ershi.aspider.datasource.service.FinancialArticleDSFactory;
-import com.ershi.aspider.datasource.provider.FinancialArticleDataSource;
-import com.ershi.aspider.datasource.domain.FinancialArticle;
-import com.ershi.aspider.orchestration.service.FinancialArticleDataService;
-import com.ershi.aspider.storage.elasticsearch.service.FinancialArticleStorageService;
+import com.ershi.aspider.data.datasource.domain.FinancialArticleDSTypeEnum;
+import com.ershi.aspider.data.job.FinancialArticleDataJob;
+import com.ershi.aspider.data.datasource.service.FinancialArticleDSFactory;
+import com.ershi.aspider.data.datasource.provider.FinancialArticleDataSource;
+import com.ershi.aspider.data.datasource.domain.FinancialArticle;
+import com.ershi.aspider.data.orchestration.service.FinancialArticleDataService;
+import com.ershi.aspider.data.storage.elasticsearch.service.FinancialArticleStorageService;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -59,8 +59,8 @@ public class FinancialArticleDataServiceTest {
      */
     @Test
     public void testDeleteByTimeAndImportance() {
-        LocalDateTime expireTime = LocalDateTime.now().minusDays(90);
-        int minImportance = 3;
+        LocalDateTime expireTime = LocalDateTime.now().minusDays(1);
+        int minImportance = 6;
         long deletedCount = financialArticleStorageService.deleteByTimeAndImportance(expireTime, minImportance);
         System.out.println("分层清理完成，删除低重要性数据: " + deletedCount + " 条");
     }
