@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.ershi.aspider.data.datasource.domain.NewsTypeEnum;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -30,6 +32,24 @@ public class FinancialArticleStorageService {
     private static final Logger log = LoggerFactory.getLogger(FinancialArticleStorageService.class);
 
     private static final String NEWS_DATA_INDEX = "financial_article";
+
+    /** 向量检索最低相似度分数阈值 */
+    private static final double MIN_SCORE_THRESHOLD = 0.6;
+
+    /** 混合检索最低相似度分数阈值（混合检索分数范围更大，需要更高阈值） */
+    private static final double HYBRID_SCORE_THRESHOLD = 5.0;
+
+    /** 混合检索中向量检索的权重 */
+    private static final float VECTOR_BOOST = 2.0f;
+
+    /** 混合检索中标题匹配的权重 */
+    private static final float TITLE_BOOST = 3.0f;
+
+    /** 混合检索中摘要匹配的权重 */
+    private static final float SUMMARY_BOOST = 1.5f;
+
+    /** 重要新闻的boost权重 */
+    private static final float IMPORTANCE_BOOST = 1.5f;
 
     private final ElasticsearchClient elasticsearchClient;
 
@@ -101,17 +121,18 @@ public class FinancialArticleStorageService {
      * @return 新闻列表
      */
     public List<FinancialArticle> findRecentByDays(int days, int size) {
-        LocalDateTime startTime = LocalDateTime.now().minusDays(days);
-        log.info("开始查询最近 {} 天的新闻数据，起始时间：{}", days, startTime);
+        log.info("开始查询最近 {} 天的新闻数据", days);
 
         try {
+            String timeStr = formatTimeFilter(days);
+
             SearchResponse<FinancialArticle> response = elasticsearchClient.search(s -> s
                     .index(NEWS_DATA_INDEX)
                     .query(q -> q
                         .range(r -> r
                             .date(dr -> dr
                                 .field("publishTime")
-                                .gte(startTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                                .gte(timeStr)
                             )
                         )
                     )
@@ -125,15 +146,7 @@ public class FinancialArticleStorageService {
                 FinancialArticle.class
             );
 
-            List<FinancialArticle> result = new ArrayList<>();
-            for (Hit<FinancialArticle> hit : response.hits().hits()) {
-                if (hit.source() != null) {
-                    FinancialArticle article = hit.source();
-                    article.setUniqueId(hit.id());
-                    result.add(article);
-                }
-            }
-
+            List<FinancialArticle> result = extractArticlesFromResponse(response);
             log.info("查询到 {} 条新闻数据", result.size());
             return result;
 
@@ -205,5 +218,386 @@ public class FinancialArticleStorageService {
             log.error("分层清理过期新闻数据失败", e);
             throw new RuntimeException("分层清理过期新闻数据失败", e);
         }
+    }
+
+    /**
+     * 向量KNN语义检索
+     * <p>
+     * 基于summaryVector进行KNN近邻搜索，返回语义相关的新闻
+     *
+     * @param queryVector 查询向量
+     * @param topK        返回数量
+     * @param days        时间范围（最近N天，0表示不限制）
+     * @return 语义相关的新闻列表
+     */
+    public List<FinancialArticle> searchByVector(List<Float> queryVector, int topK, int days) {
+        log.info("开始向量KNN检索，topK={}, days={}, 最低分数阈值={}", topK, days, MIN_SCORE_THRESHOLD);
+
+        try {
+            SearchResponse<FinancialArticle> response;
+
+            if (days > 0) {
+                // 带时间过滤的KNN检索
+                String timeStr = formatTimeFilter(days);
+
+                response = elasticsearchClient.search(s -> s
+                        .index(NEWS_DATA_INDEX)
+                        .knn(k -> k
+                            .field("summaryVector")
+                            .queryVector(queryVector)
+                            .k(topK * 5)  // 返回5倍结果，为后置过滤预留空间
+                            .numCandidates(topK * 20)  // HNSW算法搜索时考察20倍候选，提高召回质量
+                            .filter(f -> f
+                                .range(r -> r
+                                    .date(dr -> dr
+                                        .field("publishTime")
+                                        .gte(timeStr)
+                                    )
+                                )
+                            )
+                        ),
+                    FinancialArticle.class
+                );
+            } else {
+                // 不带时间过滤的KNN检索
+                response = elasticsearchClient.search(s -> s
+                        .index(NEWS_DATA_INDEX)
+                        .knn(k -> k
+                            .field("summaryVector")
+                            .queryVector(queryVector)
+                            .k(topK * 5)  // 返回5倍结果，为后置过滤预留空间
+                            .numCandidates(topK * 20)  // HNSW算法搜索时考察20倍候选，提高召回质量
+                        ),
+                    FinancialArticle.class
+                );
+            }
+
+            // 使用通用方法过滤结果
+            List<FinancialArticle> result = filterAndLimitResults(response, topK, MIN_SCORE_THRESHOLD);
+
+            log.info("向量KNN检索完成，候选 {} 条，过滤后返回 {} 条结果",
+                response.hits().hits().size(), result.size());
+            return result;
+
+        } catch (IOException e) {
+            log.error("向量KNN检索失败", e);
+            throw new RuntimeException("向量KNN检索失败", e);
+        }
+    }
+
+    /**
+     * 按新闻类型和时间范围查询
+     *
+     * @param newsType 新闻类型
+     * @param days     最近N天
+     * @param size     数量限制
+     * @return 新闻列表
+     */
+    public List<FinancialArticle> findByNewsTypeAndDays(NewsTypeEnum newsType, int days, int size) {
+        log.info("查询{}类型新闻，最近{}天，限制{}条", newsType.getDescription(), days, size);
+
+        try {
+            String timeStr = formatTimeFilter(days);
+
+            SearchResponse<FinancialArticle> response = elasticsearchClient.search(s -> s
+                    .index(NEWS_DATA_INDEX)
+                    .query(q -> q
+                        .bool(b -> b
+                            .must(m -> m
+                                .term(t -> t
+                                    .field("newsType")
+                                    .value(newsType.getCode())
+                                )
+                            )
+                            .must(m -> m
+                                .range(r -> r
+                                    .date(dr -> dr
+                                        .field("publishTime")
+                                        .gte(timeStr)
+                                    )
+                                )
+                            )
+                        )
+                    )
+                    .size(size)
+                    .sort(so -> so
+                        .field(f -> f
+                            .field("publishTime")
+                            .order(co.elastic.clients.elasticsearch._types.SortOrder.Desc)
+                        )
+                    ),
+                FinancialArticle.class
+            );
+
+            List<FinancialArticle> result = extractArticlesFromResponse(response);
+            log.info("查询到 {} 条{}类型新闻", result.size(), newsType.getDescription());
+            return result;
+
+        } catch (IOException e) {
+            log.error("按类型查询新闻失败", e);
+            throw new RuntimeException("按类型查询新闻失败", e);
+        }
+    }
+
+    /**
+     * 按重要性查询新闻
+     *
+     * @param minImportance 最低重要性
+     * @param days          最近N天
+     * @param size          数量限制
+     * @return 新闻列表
+     */
+    public List<FinancialArticle> findByImportanceAndDays(int minImportance, int days, int size) {
+        log.info("查询重要性>={}的新闻，最近{}天，限制{}条", minImportance, days, size);
+
+        try {
+            String timeStr = formatTimeFilter(days);
+
+            SearchResponse<FinancialArticle> response = elasticsearchClient.search(s -> s
+                    .index(NEWS_DATA_INDEX)
+                    .query(q -> q
+                        .bool(b -> b
+                            .must(m -> m
+                                .range(r -> r
+                                    .number(nr -> nr
+                                        .field("importance")
+                                        .gte((double) minImportance)
+                                    )
+                                )
+                            )
+                            .must(m -> m
+                                .range(r -> r
+                                    .date(dr -> dr
+                                        .field("publishTime")
+                                        .gte(timeStr)
+                                    )
+                                )
+                            )
+                        )
+                    )
+                    .size(size)
+                    .sort(so -> so
+                        .field(f -> f
+                            .field("importance")
+                            .order(co.elastic.clients.elasticsearch._types.SortOrder.Desc)
+                        )
+                    )
+                    .sort(so -> so
+                        .field(f -> f
+                            .field("publishTime")
+                            .order(co.elastic.clients.elasticsearch._types.SortOrder.Desc)
+                        )
+                    ),
+                FinancialArticle.class
+            );
+
+            List<FinancialArticle> result = extractArticlesFromResponse(response);
+            log.info("查询到 {} 条重要新闻", result.size());
+            return result;
+
+        } catch (IOException e) {
+            log.error("按重要性查询新闻失败", e);
+            throw new RuntimeException("按重要性查询新闻失败", e);
+        }
+    }
+
+    /**
+     * 混合检索：向量语义检索 + 关键词匹配
+     * <p>
+     * 结合向量相似度和关键词匹配，提高检索准确性
+     *
+     * @param queryText   查询文本（用于关键词匹配）
+     * @param queryVector 查询向量（用于语义检索）
+     * @param topK        返回数量
+     * @param days        时间范围（最近N天，0表示不限制）
+     * @return 相关新闻列表
+     */
+    public List<FinancialArticle> hybridSearch(String queryText, List<Float> queryVector, int topK, int days) {
+        log.info("开始混合检索，查询词={}, topK={}, days={}", queryText, topK, days);
+
+        try {
+            SearchResponse<FinancialArticle> response;
+
+            if (days > 0) {
+                // 带时间过滤的混合检索
+                String timeStr = formatTimeFilter(days);
+
+                response = elasticsearchClient.search(s -> s
+                        .index(NEWS_DATA_INDEX)
+                        // 关键词查询部分
+                        .query(q -> q
+                            .bool(b -> b
+                                // 标题匹配（高权重）
+                                .should(sh -> sh
+                                    .match(m -> m
+                                        .field("title")
+                                        .query(queryText)
+                                        .boost(TITLE_BOOST)
+                                    )
+                                )
+                                // 摘要匹配（中权重）
+                                .should(sh -> sh
+                                    .match(m -> m
+                                        .field("summary")
+                                        .query(queryText)
+                                        .boost(SUMMARY_BOOST)
+                                    )
+                                )
+                                // 重要新闻加权
+                                .should(sh -> sh
+                                    .range(r -> r
+                                        .number(nr -> nr
+                                            .field("importance")
+                                            .gte(3.0)
+                                            .boost(IMPORTANCE_BOOST)
+                                        )
+                                    )
+                                )
+                                // 时间过滤
+                                .filter(f -> f
+                                    .range(r -> r
+                                        .date(dr -> dr
+                                            .field("publishTime")
+                                            .gte(timeStr)
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                        // 向量检索部分（高权重）
+                        .knn(k -> k
+                            .field("summaryVector")
+                            .queryVector(queryVector)
+                            .k(topK * 5)
+                            .numCandidates(topK * 20)
+                            .boost(VECTOR_BOOST)
+                        ),
+                    FinancialArticle.class
+                );
+            } else {
+                // 不带时间过滤的混合检索
+                response = elasticsearchClient.search(s -> s
+                        .index(NEWS_DATA_INDEX)
+                        .query(q -> q
+                            .bool(b -> b
+                                .should(sh -> sh
+                                    .match(m -> m
+                                        .field("title")
+                                        .query(queryText)
+                                        .boost(TITLE_BOOST)
+                                    )
+                                )
+                                .should(sh -> sh
+                                    .match(m -> m
+                                        .field("summary")
+                                        .query(queryText)
+                                        .boost(SUMMARY_BOOST)
+                                    )
+                                )
+                                .should(sh -> sh
+                                    .range(r -> r
+                                        .number(nr -> nr
+                                            .field("importance")
+                                            .gte(3.0)
+                                            .boost(IMPORTANCE_BOOST)
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                        .knn(k -> k
+                            .field("summaryVector")
+                            .queryVector(queryVector)
+                            .k(topK * 5)
+                            .numCandidates(topK * 20)
+                            .boost(VECTOR_BOOST)
+                        ),
+                    FinancialArticle.class
+                );
+            }
+
+            // 使用通用方法过滤结果（使用混合检索专用阈值）
+            List<FinancialArticle> result = filterAndLimitResults(response, topK, HYBRID_SCORE_THRESHOLD);
+
+            log.info("混合检索完成，候选 {} 条，过滤后返回 {} 条结果",
+                response.hits().hits().size(), result.size());
+            return result;
+
+        } catch (IOException e) {
+            log.error("混合检索失败", e);
+            throw new RuntimeException("混合检索失败", e);
+        }
+    }
+
+    /**
+     * 通用方法：过滤并限制搜索结果
+     * <p>
+     * 根据分数阈值过滤结果，并限制返回数量
+     *
+     * @param response       ES搜索响应
+     * @param topK           最大返回数量
+     * @param scoreThreshold 分数阈值
+     * @return 过滤后的新闻列表
+     */
+    private List<FinancialArticle> filterAndLimitResults(SearchResponse<FinancialArticle> response, int topK, double scoreThreshold) {
+        List<FinancialArticle> result = new ArrayList<>();
+
+        for (Hit<FinancialArticle> hit : response.hits().hits()) {
+            if (hit.source() != null && hit.score() != null) {
+                FinancialArticle article = hit.source();
+                article.setUniqueId(hit.id());
+                Double score = hit.score();
+
+                // 输出相似度分数用于诊断
+                log.info("候选文章: {} | 相似度分数: {}",
+                    article.getTitle().substring(0, Math.min(30, article.getTitle().length())),
+                    score);
+
+                // 过滤低分结果
+                if (score >= scoreThreshold) {
+                    result.add(article);
+
+                    // 达到topK就停止
+                    if (result.size() >= topK) {
+                        break;
+                    }
+                } else {
+                    log.debug("过滤低分文章: {} | 分数: {} < {}",
+                        article.getTitle().substring(0, Math.min(30, article.getTitle().length())),
+                        score, scoreThreshold);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 通用方法：格式化时间过滤条件
+     *
+     * @param days 最近N天
+     * @return 格式化后的时间字符串
+     */
+    private String formatTimeFilter(int days) {
+        LocalDateTime startTime = LocalDateTime.now().minusDays(days);
+        return startTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    /**
+     * 通用方法：从ES响应中提取文章列表（不带分数过滤）
+     *
+     * @param response ES搜索响应
+     * @return 文章列表
+     */
+    private List<FinancialArticle> extractArticlesFromResponse(SearchResponse<FinancialArticle> response) {
+        List<FinancialArticle> result = new ArrayList<>();
+        for (Hit<FinancialArticle> hit : response.hits().hits()) {
+            if (hit.source() != null) {
+                FinancialArticle article = hit.source();
+                article.setUniqueId(hit.id());
+                result.add(article);
+            }
+        }
+        return result;
     }
 }
