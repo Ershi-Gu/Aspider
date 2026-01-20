@@ -125,6 +125,84 @@ public void cleanupExpiredNews() {
 | 2 | 一般 | 行业新闻、市场评论 |
 | 1 | 普通 | 资讯、快讯 |
 
+### 搜索检索策略
+
+#### 混合搜索方案
+
+为提高新闻检索的准确性和召回率，采用**向量语义检索 + 关键词匹配 + 业务规则**的混合搜索方案。
+
+```
+混合搜索 = 向量相似度检索 + 关键词匹配 + 重要性加权
+         ↓
+    综合评分排序 → 阈值过滤 → 返回Top N
+```
+
+#### 检索方法对比
+
+| 检索方法 | 适用场景 | 分数阈值 | 特点 |
+|---------|---------|---------|------|
+| **向量检索** | 语义相关性搜索 | 0.6 | 纯向量相似度，适合"半导体"匹配"集成电路"等语义关联 |
+| **混合检索** | 综合相关性搜索 | 5.0 | 结合向量+关键词+业务规则，准确性更高 |
+| **关键词检索** | 精确匹配 | - | 传统全文检索，适合精确查询 |
+
+#### KNN 参数优化策略
+
+```java
+// 向量检索参数配置
+.knn(k -> k
+    .field("summaryVector")
+    .queryVector(queryVector)
+    .k(topK * 5)              // 返回5倍结果，为后置过滤预留空间
+    .numCandidates(topK * 20) // HNSW算法搜索20倍候选，提高召回质量
+)
+```
+
+**参数说明**：
+- `k`: 返回结果数量，设置为 topK * 5，为分数过滤预留足够候选
+- `numCandidates`: HNSW 图搜索时考察的候选数量，设置为 topK * 20，平衡召回率和性能
+
+#### Boost 权重配置
+
+混合搜索中各维度的权重配置：
+
+| 维度 | Boost值 | 说明 |
+|-----|---------|------|
+| **向量检索** | 2.0 | 语义相关性基础权重 |
+| **标题匹配** | 3.0 | 标题关键词匹配最高权重 |
+| **摘要匹配** | 1.5 | 摘要关键词匹配中等权重 |
+| **重要性** | 1.5 | 重要新闻（importance≥3）加权 |
+
+#### 检索工具方法
+
+为消除代码重复，封装了三个通用工具方法：
+
+```java
+// 1. 过滤并限制搜索结果（用于带分数的检索）
+private List<FinancialArticle> filterAndLimitResults(
+    SearchResponse<FinancialArticle> response,
+    int topK,
+    double scoreThreshold
+)
+
+// 2. 格式化时间过滤条件
+private String formatTimeFilter(int days)
+
+// 3. 提取文章列表（用于不带分数的检索）
+private List<FinancialArticle> extractArticlesFromResponse(
+    SearchResponse<FinancialArticle> response
+)
+```
+
+#### 检索方法汇总
+
+| 方法 | 用途 | 使用工具方法 |
+|-----|------|------------|
+| `searchByVector()` | 纯向量语义检索 | filterAndLimitResults + formatTimeFilter |
+| `hybridSearch()` | 混合检索（推荐） | filterAndLimitResults + formatTimeFilter |
+| `findRecentByDays()` | 按时间查询 | extractArticlesFromResponse + formatTimeFilter |
+| `findByNewsTypeAndDays()` | 按类型查询 | extractArticlesFromResponse + formatTimeFilter |
+| `findByImportanceAndDays()` | 按重要性查询 | extractArticlesFromResponse + formatTimeFilter |
+
 ### 数据模型
 
 #### FinancialArticle（财经新闻）
