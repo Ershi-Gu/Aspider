@@ -190,7 +190,7 @@ public class FinancialArticleDataServiceTest {
     @Test
     public void testHybridSearch() {
         // 1. 将查询词向量化
-        String query = "面条";
+        String query = "航天";
         List<Double> doubleVector = embeddingExecutor.embedText(query);
         List<Float> queryVector = doubleVector.stream()
             .map(Double::floatValue)

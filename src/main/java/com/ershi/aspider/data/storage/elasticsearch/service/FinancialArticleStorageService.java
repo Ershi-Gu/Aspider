@@ -36,8 +36,11 @@ public class FinancialArticleStorageService {
     /** 向量检索最低相似度分数阈值 */
     private static final double MIN_SCORE_THRESHOLD = 0.6;
 
-    /** 混合检索最低相似度分数阈值（混合检索分数范围更大，需要更高阈值） */
-    private static final double HYBRID_SCORE_THRESHOLD = 5.0;
+    /** 混合检索最低相似度分数阈值（归一化后的分数，范围0-1） */
+    private static final double HYBRID_SCORE_THRESHOLD = 0.6;
+
+    /** 混合检索分数归一化基准值（经验值，用于将原始分数归一化到0-1范围） */
+    private static final double HYBRID_SCORE_NORMALIZATION_BASE = 20.0;
 
     /** 混合检索中向量检索的权重 */
     private static final float VECTOR_BOOST = 2.0f;
@@ -516,8 +519,8 @@ public class FinancialArticleStorageService {
                 );
             }
 
-            // 使用通用方法过滤结果（使用混合检索专用阈值）
-            List<FinancialArticle> result = filterAndLimitResults(response, topK, HYBRID_SCORE_THRESHOLD);
+            // 使用归一化方法处理混合检索结果
+            List<FinancialArticle> result = filterAndLimitResultsWithNormalization(response, topK, HYBRID_SCORE_THRESHOLD);
 
             log.info("混合检索完成，候选 {} 条，过滤后返回 {} 条结果",
                 response.hits().hits().size(), result.size());
@@ -527,6 +530,52 @@ public class FinancialArticleStorageService {
             log.error("混合检索失败", e);
             throw new RuntimeException("混合检索失败", e);
         }
+    }
+
+    /**
+     * 通用方法：过滤并限制搜索结果（带固定基准归一化）
+     * <p>
+     * 使用固定基准值将分数归一化到0-1范围，反映绝对相关性而非相对排名
+     *
+     * @param response       ES搜索响应
+     * @param topK           最大返回数量
+     * @param scoreThreshold 分数阈值（0-1范围）
+     * @return 过滤后的新闻列表
+     */
+    private List<FinancialArticle> filterAndLimitResultsWithNormalization(SearchResponse<FinancialArticle> response, int topK, double scoreThreshold) {
+        List<FinancialArticle> result = new ArrayList<>();
+
+        for (Hit<FinancialArticle> hit : response.hits().hits()) {
+            if (hit.source() != null && hit.score() != null) {
+                FinancialArticle article = hit.source();
+                article.setUniqueId(hit.id());
+
+                // 使用固定基准归一化分数到0-1范围
+                double normalizedScore = Math.min(hit.score() / HYBRID_SCORE_NORMALIZATION_BASE, 1.0);
+
+                // 输出归一化后的分数用于诊断
+                log.info("候选文章: {} | 原始分数: {} | 归一化分数: {}",
+                    article.getTitle().substring(0, Math.min(30, article.getTitle().length())),
+                    hit.score(),
+                    String.format("%.3f", normalizedScore));
+
+                // 过滤低分结果
+                if (normalizedScore >= scoreThreshold) {
+                    result.add(article);
+
+                    // 达到topK就停止
+                    if (result.size() >= topK) {
+                        break;
+                    }
+                } else {
+                    log.debug("过滤低分文章: {} | 归一化分数: {} < {}",
+                        article.getTitle().substring(0, Math.min(30, article.getTitle().length())),
+                        String.format("%.3f", normalizedScore), scoreThreshold);
+                }
+            }
+        }
+
+        return result;
     }
 
     /**
