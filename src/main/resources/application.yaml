@@ -41,3 +41,23 @@ processor: # 数据处理模块
       model: qwen3-max            # 模型名称
       api-key: your-llm-api-key    # API密钥
       base-url:                    # 自定义请求api，Gemini支持使用第三方api，未填写则使用官方api
+
+analysis: # 分析模块配置
+  agent: # Agent分析模块
+    llm: # LLM多API配置（支持全局默认 + 按Agent覆盖）
+      default: # 全局默认配置
+        base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+        api-key: ${OPENAI_API_KEY:your-api-key}
+        model: ${OPENAI_MODEL:gpt-4o-mini}
+        timeout: 30                   # 超时秒数
+        max-retries: 3                # 最大重试次数
+      # PolicyAgent专用配置（可选覆盖）
+      # policy:
+      #   model: gpt-4o-mini          # 可使用更轻量模型
+      # SectorAgent专用配置（可选覆盖）
+      # sector:
+      # TrendAgent专用配置（可选覆盖）
+      # trend:
+      # SynthesisAgent专用配置（推荐使用更强模型）
+      synthesis:
+        model: ${SYNTHESIS_MODEL:gpt-4o}  # 综合研判建议使用更强模型
