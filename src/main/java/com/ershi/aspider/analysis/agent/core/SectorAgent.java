@@ -1,6 +1,14 @@
 package com.ershi.aspider.analysis.agent.core;
 
+import com.alibaba.fastjson2.JSON;
 import com.ershi.aspider.analysis.agent.domain.*;
+import com.ershi.aspider.analysis.agent.llm.LlmAnalysisExecutor;
+import com.ershi.aspider.analysis.agent.llm.LlmExecutionException;
+import com.ershi.aspider.analysis.agent.llm.LlmParseException;
+import com.ershi.aspider.analysis.agent.llm.dto.SectorLlmResponse;
+import com.ershi.aspider.analysis.agent.llm.prompt.PromptRenderException;
+import com.ershi.aspider.analysis.agent.llm.prompt.PromptTemplateNotFoundException;
+import com.ershi.aspider.analysis.agent.rule.SectorRuleEngine;
 import com.ershi.aspider.analysis.retriever.domain.SectorDataResult;
 import com.ershi.aspider.analysis.retriever.domain.TrendIndicator;
 import com.ershi.aspider.data.datasource.domain.SectorMoneyFlow;
@@ -9,11 +17,17 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * 资金面分析Agent（规则驱动，不调用LLM）
+ * 资金面分析Agent（LLM驱动 + 规则降级）
  *
- * 从板块资金流向数据中提取资金面信号、情绪面信号和热度评分
+ * 从板块资金流向数据中提取资金面信号、情绪面信号
+ * LLM只输出信号，数值字段由系统从原始数据填充
+ * LLM调用失败时自动降级为规则分析
  *
  * @author Ershi-Gu
  */
@@ -21,17 +35,19 @@ import java.math.RoundingMode;
 @Slf4j
 public class SectorAgent implements Agent<AgentContext, SectorHeat> {
 
-    /** 前N%为正向信号的排名阈值 */
-    private static final double TOP_RANK_RATIO = 0.2;
-
-    /** 后N%为负向信号的排名阈值 */
-    private static final double BOTTOM_RANK_RATIO = 0.8;
-
     /** 超大单占比阈值（%），超过该值表示机构参与度高 */
     private static final double SUPER_LARGE_THRESHOLD = 50.0;
 
     /** 流入金额归一化基准（亿元） */
     private static final double INFLOW_NORMALIZE_BASE = 10_000_000_000.0;
+
+    private final LlmAnalysisExecutor llmExecutor;
+    private final SectorRuleEngine ruleEngine;
+
+    public SectorAgent(LlmAnalysisExecutor llmExecutor, SectorRuleEngine ruleEngine) {
+        this.llmExecutor = llmExecutor;
+        this.ruleEngine = ruleEngine;
+    }
 
     @Override
     public AgentType getAgentType() {
@@ -48,36 +64,94 @@ public class SectorAgent implements Agent<AgentContext, SectorHeat> {
             return SectorHeat.empty("no_sector_data");
         }
 
+        // 尝试LLM分析
+        try {
+            SectorHeat result = analyzeLlm(context);
+            log.info("SectorAgent LLM分析成功，资金信号={}，情绪信号={}",
+                     result.getCapitalSignal(), result.getSentimentSignal());
+            return result;
+        } catch (PromptTemplateNotFoundException e) {
+            log.warn("SectorAgent Prompt模板缺失，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_PROMPT_MISSING);
+        } catch (PromptRenderException e) {
+            log.warn("SectorAgent Prompt渲染失败，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_LLM_FALLBACK);
+        } catch (LlmExecutionException e) {
+            log.warn("SectorAgent LLM执行失败，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_NON_AI);
+        } catch (LlmParseException e) {
+            log.warn("SectorAgent LLM响应解析失败，降级为规则分析，原始响应: {}", e.getRawResponse(), e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_LLM_PARSE_ERROR);
+        } catch (Exception e) {
+            log.error("SectorAgent 未知异常，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_NON_AI);
+        }
+    }
+
+    /**
+     * LLM驱动分析
+     */
+    private SectorHeat analyzeLlm(AgentContext context) {
+        // 1. 构建Prompt变量
+        Map<String, Object> variables = buildPromptVariables(context);
+
+        // 2. 调用LLM
+        SectorLlmResponse llmResponse = llmExecutor.execute(
+            AgentType.SECTOR, variables, SectorLlmResponse.class);
+
+        // 3. 合并系统填充字段（数值保护）
+        return mergeWithSystemData(llmResponse, context);
+    }
+
+    /**
+     * 构建Prompt变量
+     */
+    private Map<String, Object> buildPromptVariables(AgentContext context) {
+        String sectorName = context.getQuery() != null ? context.getQuery().getSectorName() : "未知板块";
+        String analysisTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+
+        SectorDataResult sectorResult = context.getSectorResult();
         SectorMoneyFlow todayFlow = sectorResult.getTodayFlow();
         TrendIndicator trend = sectorResult.getTrendIndicator();
 
-        // 1. 计算资金面信号
-        SignalType capitalSignal = determineCapitalSignal(
-            todayFlow.getMainNetInflow(),
-            sectorResult.getInflowRank(),
-            sectorResult.getTotalSectors()
-        );
+        // 构建资金指标JSON
+        Map<String, Object> metrics = new HashMap<>();
+        metrics.put("mainNetInflow", formatInflow(todayFlow.getMainNetInflow()));
+        metrics.put("inflowRank", sectorResult.getInflowRank());
+        metrics.put("totalSectors", sectorResult.getTotalSectors());
+        metrics.put("superLargeRatio", calculateSuperLargeRatio(todayFlow));
+        metrics.put("consecutiveInflowDays", trend != null ? trend.getConsecutiveInflowDays() : 0);
 
-        // 2. 计算情绪面信号（基于超大单占比判断机构参与度）
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("sector_name", sectorName);
+        variables.put("analysis_time", analysisTime);
+        variables.put("sector_metrics_json", JSON.toJSONString(metrics));
+        return variables;
+    }
+
+    /**
+     * 合并LLM输出与系统填充字段（数值保护）
+     */
+    private SectorHeat mergeWithSystemData(SectorLlmResponse llmResponse, AgentContext context) {
+        SectorDataResult sectorResult = context.getSectorResult();
+        SectorMoneyFlow todayFlow = sectorResult.getTodayFlow();
+        TrendIndicator trend = sectorResult.getTrendIndicator();
+
+        // 数值字段全部从原始数据填充
         BigDecimal superLargeRatio = calculateSuperLargeRatio(todayFlow);
-        SignalType sentimentSignal = superLargeRatio.doubleValue() > SUPER_LARGE_THRESHOLD
-            ? SignalType.POSITIVE : SignalType.NEUTRAL;
-
-        // 3. 计算热度评分（综合排名、流入金额、连续天数）
         int heatScore = calculateHeatScore(sectorResult);
-
-        // 4. 构建资金结构
-        CapitalStructure structure = buildCapitalStructure(todayFlow);
-
-        // 5. 获取连续流入天数
         int consecutiveInflowDays = trend != null ? trend.getConsecutiveInflowDays() : 0;
 
-        log.info("SectorAgent 分析完成，资金信号={}，情绪信号={}，热度={}",
-                 capitalSignal, sentimentSignal, heatScore);
+        CapitalStructure structure = CapitalStructure.builder()
+            .superLargeInflow(todayFlow.getSuperLargeInflow())
+            .largeInflow(todayFlow.getLargeInflow())
+            .mediumInflow(todayFlow.getMediumInflow())
+            .smallInflow(todayFlow.getSmallInflow())
+            .build();
 
         return SectorHeat.builder()
-            .capitalSignal(capitalSignal)
-            .sentimentSignal(sentimentSignal)
+            .capitalSignal(llmResponse.getCapitalSignal() != null ? llmResponse.getCapitalSignal() : SignalType.NEUTRAL)
+            .sentimentSignal(llmResponse.getSentimentSignal() != null ? llmResponse.getSentimentSignal() : SignalType.NEUTRAL)
             .mainNetInflow(todayFlow.getMainNetInflow())
             .consecutiveInflowDays(consecutiveInflowDays)
             .superLargeRatio(superLargeRatio)
@@ -90,23 +164,26 @@ public class SectorAgent implements Agent<AgentContext, SectorHeat> {
     }
 
     /**
-     * 判定资金面信号
+     * 降级为规则分析
      */
-    private SignalType determineCapitalSignal(BigDecimal inflow, int rank, long total) {
-        if (inflow == null || total == 0) return SignalType.NEUTRAL;
+    private SectorHeat analyzeWithDegradation(AgentContext context, String degradeMessage) {
+        SectorHeat result = ruleEngine.analyze(context);
+        result.setStatus(AnalysisStatus.degraded(degradeMessage));
+        log.info("SectorAgent 规则分析完成（降级），资金信号={}，情绪信号={}",
+                 result.getCapitalSignal(), result.getSentimentSignal());
+        return result;
+    }
 
-        boolean isPositiveInflow = inflow.compareTo(BigDecimal.ZERO) > 0;
-        boolean isTopRank = rank > 0 && rank <= total * TOP_RANK_RATIO;
-        boolean isBottomRank = rank > 0 && rank > total * BOTTOM_RANK_RATIO;
-
-        if (isPositiveInflow && isTopRank) return SignalType.POSITIVE;
-        if (!isPositiveInflow && isBottomRank) return SignalType.NEGATIVE;
-        return SignalType.NEUTRAL;
+    /**
+     * 格式化流入金额（亿元）
+     */
+    private String formatInflow(BigDecimal inflow) {
+        if (inflow == null) return "0";
+        return String.format("%.2f亿", inflow.doubleValue() / 100_000_000);
     }
 
     /**
      * 计算超大单占比
-     * 计算方式：超大单净流入 / (超大单净流入绝对值 + 大单净流入绝对值) * 100
      */
     private BigDecimal calculateSuperLargeRatio(SectorMoneyFlow flow) {
         if (flow.getSuperLargeInflowRatio() != null) {
@@ -132,23 +209,19 @@ public class SectorAgent implements Agent<AgentContext, SectorHeat> {
 
     /**
      * 计算热度评分
-     * 加权评分：排名(40%) + 连续天数(30%) + 流入金额归一化(30%)
      */
     private int calculateHeatScore(SectorDataResult result) {
-        // 排名评分（前20%得40分，线性递减）
         int rankScore = 0;
         if (result.getInflowRank() > 0 && result.getTotalSectors() > 0) {
             double rankRatio = (double) result.getInflowRank() / result.getTotalSectors();
             rankScore = (int) ((1 - rankRatio) * 40);
         }
 
-        // 连续天数评分（每天10分，最高30分）
         int consecutiveScore = 0;
         if (result.getTrendIndicator() != null) {
             consecutiveScore = Math.min(30, result.getTrendIndicator().getConsecutiveInflowDays() * 10);
         }
 
-        // 流入金额评分（以10亿为基准，最高30分）
         int inflowScore = normalizeInflowScore(result.getTodayFlow().getMainNetInflow());
 
         return Math.min(100, Math.max(0, rankScore + consecutiveScore + inflowScore));
@@ -158,22 +231,13 @@ public class SectorAgent implements Agent<AgentContext, SectorHeat> {
      * 将流入金额归一化为评分（0-30分）
      */
     private int normalizeInflowScore(BigDecimal inflow) {
-        if (inflow == null) return 0;
+        if (inflow == null) {
+            return 0;
+        }
         double value = inflow.doubleValue();
-        if (value <= 0) return 0;
-        // 以10亿为满分基准
+        if (value <= 0) {
+            return 0;
+        }
         return (int) Math.min(30, (value / INFLOW_NORMALIZE_BASE) * 30);
-    }
-
-    /**
-     * 构建资金结构详情
-     */
-    private CapitalStructure buildCapitalStructure(SectorMoneyFlow flow) {
-        return CapitalStructure.builder()
-            .superLargeInflow(flow.getSuperLargeInflow())
-            .largeInflow(flow.getLargeInflow())
-            .mediumInflow(flow.getMediumInflow())
-            .smallInflow(flow.getSmallInflow())
-            .build();
     }
 }

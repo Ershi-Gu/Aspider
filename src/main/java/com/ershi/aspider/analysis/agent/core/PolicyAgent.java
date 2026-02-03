@@ -1,19 +1,30 @@
 package com.ershi.aspider.analysis.agent.core;
 
+import com.alibaba.fastjson2.JSON;
 import com.ershi.aspider.analysis.agent.domain.*;
+import com.ershi.aspider.analysis.agent.llm.LlmAnalysisExecutor;
+import com.ershi.aspider.analysis.agent.llm.LlmExecutionException;
+import com.ershi.aspider.analysis.agent.llm.LlmParseException;
+import com.ershi.aspider.analysis.agent.llm.dto.PolicyLlmResponse;
+import com.ershi.aspider.analysis.agent.llm.prompt.PromptRenderException;
+import com.ershi.aspider.analysis.agent.llm.prompt.PromptTemplateNotFoundException;
+import com.ershi.aspider.analysis.agent.rule.PolicyRuleEngine;
 import com.ershi.aspider.analysis.retriever.domain.NewsRetrievalResult;
 import com.ershi.aspider.analysis.retriever.domain.RetrievedArticle;
 import com.ershi.aspider.data.datasource.domain.NewsTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 消息面分析Agent（规则驱动，不调用LLM）
+ * 消息面分析Agent（LLM驱动 + 规则降级）
  *
  * 从新闻检索结果中提取政策信号、核心驱动因素和潜在风险
+ * LLM调用失败时自动降级为规则分析
  *
  * @author Ershi-Gu
  */
@@ -27,18 +38,13 @@ public class PolicyAgent implements Agent<AgentContext, PolicyImpact> {
     /** 相关新闻上限 */
     private static final int POLICY_NEWS_LIMIT = 5;
 
-    /** 正面关键词 */
-    private static final List<String> POSITIVE_KEYWORDS = List.of(
-        "利好", "上涨", "增长", "突破", "扶持", "补贴", "减税",
-        "加速", "创新高", "超预期", "放量", "大涨", "政策支持",
-        "国产替代", "自主可控", "产业升级"
-    );
+    private final LlmAnalysisExecutor llmExecutor;
+    private final PolicyRuleEngine ruleEngine;
 
-    /** 负面关键词 */
-    private static final List<String> NEGATIVE_KEYWORDS = List.of(
-        "利空", "下跌", "下滑", "制裁", "限制", "收紧", "暴跌",
-        "风险", "警告", "亏损", "减持", "退市", "监管", "处罚"
-    );
+    public PolicyAgent(LlmAnalysisExecutor llmExecutor, PolicyRuleEngine ruleEngine) {
+        this.llmExecutor = llmExecutor;
+        this.ruleEngine = ruleEngine;
+    }
 
     @Override
     public AgentType getAgentType() {
@@ -55,9 +61,79 @@ public class PolicyAgent implements Agent<AgentContext, PolicyImpact> {
             return PolicyImpact.empty("no_news_data");
         }
 
-        List<RetrievedArticle> articles = newsResult.getArticles();
+        // 尝试LLM分析
+        try {
+            PolicyImpact result = analyzeLlm(context);
+            log.info("PolicyAgent LLM分析成功，信号={}", result.getSignal());
+            return result;
+        } catch (PromptTemplateNotFoundException e) {
+            log.warn("PolicyAgent Prompt模板缺失，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_PROMPT_MISSING);
+        } catch (PromptRenderException e) {
+            log.warn("PolicyAgent Prompt渲染失败，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_LLM_FALLBACK);
+        } catch (LlmExecutionException e) {
+            log.warn("PolicyAgent LLM执行失败，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_NON_AI);
+        } catch (LlmParseException e) {
+            log.warn("PolicyAgent LLM响应解析失败，降级为规则分析，原始响应: {}", e.getRawResponse(), e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_LLM_PARSE_ERROR);
+        } catch (Exception e) {
+            log.error("PolicyAgent 未知异常，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_NON_AI);
+        }
+    }
 
-        // 1. 提取政策类和高重要性新闻
+    /**
+     * LLM驱动分析
+     */
+    private PolicyImpact analyzeLlm(AgentContext context) {
+        // 1. 构建Prompt变量
+        Map<String, Object> variables = buildPromptVariables(context);
+
+        // 2. 调用LLM
+        PolicyLlmResponse llmResponse = llmExecutor.execute(
+            AgentType.POLICY, variables, PolicyLlmResponse.class);
+
+        // 3. 合并系统填充字段
+        return mergeWithSystemData(llmResponse, context);
+    }
+
+    /**
+     * 构建Prompt变量
+     */
+    private Map<String, Object> buildPromptVariables(AgentContext context) {
+        String sectorName = context.getQuery() != null ? context.getQuery().getSectorName() : "未知板块";
+        String analysisTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+
+        // 构建新闻列表JSON
+        List<Map<String, Object>> newsList = context.getNewsResult().getArticles().stream()
+            .limit(10)
+            .map(article -> {
+                Map<String, Object> item = new HashMap<>();
+                item.put("title", article.getArticle().getTitle());
+                item.put("summary", article.getArticle().getSummary());
+                item.put("importance", article.getArticle().getImportance());
+                item.put("newsType", article.getArticle().getNewsType() != null
+                    ? article.getArticle().getNewsType().name() : "GENERAL");
+                return item;
+            })
+            .collect(Collectors.toList());
+
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("sector_name", sectorName);
+        variables.put("analysis_time", analysisTime);
+        variables.put("news_list_json", JSON.toJSONString(newsList));
+        return variables;
+    }
+
+    /**
+     * 合并LLM输出与系统填充字段
+     */
+    private PolicyImpact mergeWithSystemData(PolicyLlmResponse llmResponse, AgentContext context) {
+        List<RetrievedArticle> articles = context.getNewsResult().getArticles();
+
+        // 提取政策类和高重要性新闻（系统填充relatedNews）
         List<RetrievedArticle> policyNews = articles.stream()
             .filter(a -> a.getArticle().getNewsType() == NewsTypeEnum.POLICY
                       || a.getArticle().getImportance() >= 3)
@@ -65,33 +141,17 @@ public class PolicyAgent implements Agent<AgentContext, PolicyImpact> {
             .limit(POLICY_NEWS_LIMIT)
             .toList();
 
-        // 2. 提取核心驱动因素（从高重要性新闻标题提取）
-        List<String> coreDrivers = policyNews.stream()
-            .filter(a -> a.getArticle().getImportance() >= 4)
-            .map(a -> a.getArticle().getTitle())
-            .limit(3)
-            .toList();
-
-        // 3. 识别潜在风险
-        List<String> potentialRisks = extractRisks(articles);
-
-        // 4. 判定信号：基于正面/负面关键词计数
-        SignalType signal = determineSignal(policyNews);
-
-        // 5. 计算置信度（基于证据数量）
-        double confidence = Math.min(1.0, policyNews.size() / (double) MIN_EVIDENCE_COUNT);
-
-        // 6. 构建相关新闻列表
         List<PolicyNewsItem> relatedNews = policyNews.stream()
             .map(this::toNewsItem)
             .toList();
 
-        log.info("PolicyAgent 分析完成，信号={}，置信度={}", signal, confidence);
+        // 系统计算置信度
+        double confidence = Math.min(1.0, policyNews.size() / (double) MIN_EVIDENCE_COUNT);
 
         return PolicyImpact.builder()
-            .signal(signal)
-            .coreDrivers(coreDrivers)
-            .potentialRisks(potentialRisks)
+            .signal(llmResponse.getSignal() != null ? llmResponse.getSignal() : SignalType.NEUTRAL)
+            .coreDrivers(llmResponse.getCoreDrivers() != null ? llmResponse.getCoreDrivers() : Collections.emptyList())
+            .potentialRisks(llmResponse.getPotentialRisks() != null ? llmResponse.getPotentialRisks() : Collections.emptyList())
             .relatedNews(relatedNews)
             .confidence(confidence)
             .status(AnalysisStatus.normal())
@@ -99,47 +159,13 @@ public class PolicyAgent implements Agent<AgentContext, PolicyImpact> {
     }
 
     /**
-     * 判定消息面信号
+     * 降级为规则分析
      */
-    private SignalType determineSignal(List<RetrievedArticle> news) {
-        int positiveScore = 0;
-        int negativeScore = 0;
-        for (RetrievedArticle article : news) {
-            String title = article.getArticle().getTitle();
-            if (title == null) continue;
-            if (containsAnyKeyword(title, POSITIVE_KEYWORDS)) positiveScore++;
-            if (containsAnyKeyword(title, NEGATIVE_KEYWORDS)) negativeScore++;
-        }
-
-        if (positiveScore > negativeScore + 1) return SignalType.POSITIVE;
-        if (negativeScore > positiveScore + 1) return SignalType.NEGATIVE;
-        return SignalType.NEUTRAL;
-    }
-
-    /**
-     * 从新闻中提取潜在风险因素
-     */
-    private List<String> extractRisks(List<RetrievedArticle> articles) {
-        return articles.stream()
-            .filter(a -> {
-                String title = a.getArticle().getTitle();
-                return title != null && containsAnyKeyword(title, NEGATIVE_KEYWORDS);
-            })
-            .map(a -> a.getArticle().getTitle())
-            .limit(3)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * 检查文本是否包含指定关键词列表中的任一关键词
-     */
-    private boolean containsAnyKeyword(String text, List<String> keywords) {
-        for (String keyword : keywords) {
-            if (text.contains(keyword)) {
-                return true;
-            }
-        }
-        return false;
+    private PolicyImpact analyzeWithDegradation(AgentContext context, String degradeMessage) {
+        PolicyImpact result = ruleEngine.analyze(context);
+        result.setStatus(AnalysisStatus.degraded(degradeMessage));
+        log.info("PolicyAgent 规则分析完成（降级），信号={}", result.getSignal());
+        return result;
     }
 
     /**

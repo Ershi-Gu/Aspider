@@ -1,0 +1,37 @@
+你是一位资深财经分析师。请基于以下三个维度的分析结果，对「{{sector_name}}」板块进行综合研判。
+
+## 消息面分析
+- 信号: {{policy_signal}}
+- 核心驱动: {{core_drivers}}
+- 潜在风险: {{potential_risks}}
+
+## 资金面分析
+- 资金信号: {{capital_signal}}
+- 主力净流入: {{main_net_inflow}}亿
+- 连续流入天数: {{consecutive_inflow_days}}
+- 热度评分: {{heat_score}}/100
+
+## 趋势分析
+- 趋势信号: {{trend_signal}}
+- 短期观点: {{short_term_view}}
+- 中期观点: {{mid_term_view}}
+
+## 输出要求
+请**只输出JSON对象**，不要包含任何Markdown标记、代码块或额外文本。
+
+JSON格式如下：
+{
+    "overallRating": "STRONG_BULLISH|BULLISH|NEUTRAL|BEARISH|STRONG_BEARISH",
+    "overallScore": 75,
+    "crossDimensionInsights": ["洞察1", "洞察2", "洞察3"],
+    "summary": "一句话总结，不超过50字"
+}
+
+## 重要约束
+- overallRating 必须是以下之一：STRONG_BULLISH、BULLISH、NEUTRAL、BEARISH、STRONG_BEARISH
+- overallScore 范围 0-100 的整数
+- crossDimensionInsights 包含2-3条跨维度关联洞察
+- summary 不超过50字，聚焦核心结论
+- 分析要客观，不要给出具体投资建议
+- 重点关注维度间的关联和共振效应
+- 如果信号矛盾，需要在洞察中说明矛盾点

@@ -1,23 +1,33 @@
 package com.ershi.aspider.analysis.agent.core;
 
+import com.alibaba.fastjson2.JSON;
 import com.ershi.aspider.analysis.agent.domain.*;
+import com.ershi.aspider.analysis.agent.llm.LlmAnalysisExecutor;
+import com.ershi.aspider.analysis.agent.llm.LlmExecutionException;
+import com.ershi.aspider.analysis.agent.llm.LlmParseException;
+import com.ershi.aspider.analysis.agent.llm.dto.TrendLlmResponse;
+import com.ershi.aspider.analysis.agent.llm.prompt.PromptRenderException;
+import com.ershi.aspider.analysis.agent.llm.prompt.PromptTemplateNotFoundException;
+import com.ershi.aspider.analysis.agent.rule.TrendRuleEngine;
 import com.ershi.aspider.analysis.retriever.domain.SectorDataResult;
 import com.ershi.aspider.analysis.retriever.domain.TrendIndicator;
-import com.ershi.aspider.analysis.retriever.domain.enums.TrendDirection;
 import com.ershi.aspider.data.datasource.domain.SectorMoneyFlow;
 import com.ershi.aspider.data.datasource.domain.SectorQuote;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * 趋势研判Agent（规则驱动，不调用LLM）
+ * 趋势研判Agent（LLM驱动 + 规则降级）
  *
- * 从板块行情和资金流向数据中提取趋势信号、支撑压力位和风险提示
+ * 从板块行情和资金流向数据中提取趋势信号、短期/中期研判和风险提示
+ * LLM输出观点，数值字段（支撑位/压力位）由系统填充
+ * LLM调用失败时自动降级为规则分析
  *
  * @author Ershi-Gu
  */
@@ -25,11 +35,13 @@ import java.util.List;
 @Slf4j
 public class TrendAgent implements Agent<AgentContext, TrendSignal> {
 
-    /** 连续流入/流出判定趋势的天数阈值 */
-    private static final int TREND_DAYS_THRESHOLD = 3;
+    private final LlmAnalysisExecutor llmExecutor;
+    private final TrendRuleEngine ruleEngine;
 
-    /** 涨跌幅波动阈值（%） */
-    private static final double VOLATILITY_THRESHOLD = 3.0;
+    public TrendAgent(LlmAnalysisExecutor llmExecutor, TrendRuleEngine ruleEngine) {
+        this.llmExecutor = llmExecutor;
+        this.ruleEngine = ruleEngine;
+    }
 
     @Override
     public AgentType getAgentType() {
@@ -46,169 +58,145 @@ public class TrendAgent implements Agent<AgentContext, TrendSignal> {
             return TrendSignal.empty("no_trend_data");
         }
 
+        // 尝试LLM分析
+        try {
+            TrendSignal result = analyzeLlm(context);
+            log.info("TrendAgent LLM分析成功，信号={}，方向={}",
+                     result.getSignal(), result.getDirection());
+            return result;
+        } catch (PromptTemplateNotFoundException e) {
+            log.warn("TrendAgent Prompt模板缺失，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_PROMPT_MISSING);
+        } catch (PromptRenderException e) {
+            log.warn("TrendAgent Prompt渲染失败，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_LLM_FALLBACK);
+        } catch (LlmExecutionException e) {
+            log.warn("TrendAgent LLM执行失败，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_NON_AI);
+        } catch (LlmParseException e) {
+            log.warn("TrendAgent LLM响应解析失败，降级为规则分析，原始响应: {}", e.getRawResponse(), e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_LLM_PARSE_ERROR);
+        } catch (Exception e) {
+            log.error("TrendAgent 未知异常，降级为规则分析", e);
+            return analyzeWithDegradation(context, AnalysisStatus.MSG_NON_AI);
+        }
+    }
+
+    /**
+     * LLM驱动分析
+     */
+    private TrendSignal analyzeLlm(AgentContext context) {
+        // 1. 构建Prompt变量
+        Map<String, Object> variables = buildPromptVariables(context);
+
+        // 2. 调用LLM
+        TrendLlmResponse llmResponse = llmExecutor.execute(
+            AgentType.TREND, variables, TrendLlmResponse.class);
+
+        // 3. 合并系统填充字段（数值保护）
+        return mergeWithSystemData(llmResponse, context);
+    }
+
+    /**
+     * 构建Prompt变量
+     */
+    private Map<String, Object> buildPromptVariables(AgentContext context) {
+        String sectorName = context.getQuery() != null ? context.getQuery().getSectorName() : "未知板块";
+        String analysisTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+
+        SectorDataResult sectorResult = context.getSectorResult();
         TrendIndicator indicator = sectorResult.getTrendIndicator();
         List<SectorMoneyFlow> recentFlows = sectorResult.getRecentFlows();
         SectorQuote todayQuote = sectorResult.getTodayQuote();
 
-        // 1. 信号判定（基于TrendDirection）
-        SignalType signal = mapDirectionToSignal(indicator.getDirection());
+        // 构建趋势指标JSON
+        Map<String, Object> trendIndicator = new HashMap<>();
+        trendIndicator.put("direction", indicator.getDirection().name());
+        trendIndicator.put("consecutiveInflowDays", indicator.getConsecutiveInflowDays());
+        trendIndicator.put("totalInflow", formatInflow(indicator.getTotalInflow()));
+        trendIndicator.put("avgChangePercent", String.format("%.2f%%", indicator.getAvgChangePercent()));
 
-        // 2. 短期研判（1-5日）
-        TrendView shortTerm = generateShortTermView(indicator, recentFlows);
+        // 构建近期资金流向JSON
+        List<Map<String, Object>> recentFlowList = recentFlows != null ? recentFlows.stream()
+            .limit(5)
+            .map(flow -> {
+                Map<String, Object> item = new HashMap<>();
+                item.put("tradeDate", flow.getTradeDate() != null ? flow.getTradeDate().toString() : "");
+                item.put("mainNetInflow", formatInflow(flow.getMainNetInflow()));
+                item.put("changePercent", flow.getChangePercent() != null
+                    ? String.format("%.2f%%", flow.getChangePercent()) : "0%");
+                return item;
+            })
+            .collect(Collectors.toList()) : Collections.emptyList();
 
-        // 3. 中期研判（1-4周）
-        TrendView midTerm = generateMidTermView(indicator);
+        // 构建当日行情JSON
+        Map<String, Object> quoteInfo = new HashMap<>();
+        if (todayQuote != null) {
+            quoteInfo.put("openPrice", todayQuote.getOpenPrice());
+            quoteInfo.put("closePrice", todayQuote.getClosePrice());
+            quoteInfo.put("highPrice", todayQuote.getHighPrice());
+            quoteInfo.put("lowPrice", todayQuote.getLowPrice());
+            quoteInfo.put("changePercent", todayQuote.getChangePercent() != null
+                ? String.format("%.2f%%", todayQuote.getChangePercent()) : "0%");
+            quoteInfo.put("turnoverRate", todayQuote.getTurnoverRate() != null
+                ? String.format("%.2f%%", todayQuote.getTurnoverRate()) : "0%");
+        }
 
-        // 4. 计算支撑/压力位（近N日最低/最高价）
-        BigDecimal support = calculateSupportLevel(recentFlows, todayQuote);
-        BigDecimal resistance = calculateResistanceLevel(recentFlows, todayQuote);
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("sector_name", sectorName);
+        variables.put("analysis_time", analysisTime);
+        variables.put("trend_indicator_json", JSON.toJSONString(trendIndicator));
+        variables.put("recent_flow_json", JSON.toJSONString(recentFlowList));
+        variables.put("today_quote_json", JSON.toJSONString(quoteInfo));
+        return variables;
+    }
 
-        // 5. 风险提示
-        List<String> risks = generateRiskWarnings(indicator, sectorResult);
+    /**
+     * 合并LLM输出与系统填充字段（数值保护）
+     */
+    private TrendSignal mergeWithSystemData(TrendLlmResponse llmResponse, AgentContext context) {
+        SectorDataResult sectorResult = context.getSectorResult();
+        TrendIndicator indicator = sectorResult.getTrendIndicator();
+        SectorQuote todayQuote = sectorResult.getTodayQuote();
 
-        log.info("TrendAgent 分析完成，信号={}，方向={}", signal, indicator.getDirection());
+        // 数值字段从原始数据填充
+        BigDecimal support = todayQuote != null ? todayQuote.getLowPrice() : null;
+        BigDecimal resistance = todayQuote != null ? todayQuote.getHighPrice() : null;
 
         return TrendSignal.builder()
-            .signal(signal)
+            .signal(llmResponse.getSignal() != null ? llmResponse.getSignal() : SignalType.NEUTRAL)
             .direction(indicator.getDirection())
-            .shortTerm(shortTerm)
-            .midTerm(midTerm)
+            .shortTerm(llmResponse.getShortTerm() != null ? llmResponse.getShortTerm()
+                : TrendView.builder().viewpoint("数据不足").basis("").build())
+            .midTerm(llmResponse.getMidTerm() != null ? llmResponse.getMidTerm()
+                : TrendView.builder().viewpoint("数据不足").basis("").build())
             .supportLevel(support)
             .resistanceLevel(resistance)
-            .riskWarnings(risks)
+            .riskWarnings(llmResponse.getRiskWarnings() != null ? llmResponse.getRiskWarnings() : Collections.emptyList())
             .status(AnalysisStatus.normal())
             .build();
     }
 
     /**
-     * 将趋势方向映射为信号类型
+     * 降级为规则分析
      */
-    private SignalType mapDirectionToSignal(TrendDirection direction) {
-        if (direction == null) return SignalType.NEUTRAL;
-        switch (direction) {
-            case STRONG_UP:
-            case UP:
-                return SignalType.POSITIVE;
-            case STRONG_DOWN:
-            case DOWN:
-                return SignalType.NEGATIVE;
-            case NEUTRAL:
-            default:
-                return SignalType.NEUTRAL;
-        }
+    private TrendSignal analyzeWithDegradation(AgentContext context, String degradeMessage) {
+        TrendSignal result = ruleEngine.analyze(context);
+        result.setStatus(AnalysisStatus.degraded(degradeMessage));
+        log.info("TrendAgent 规则分析完成（降级），信号={}，方向={}",
+                 result.getSignal(), result.getDirection());
+        return result;
     }
 
     /**
-     * 生成短期研判（1-5日）
+     * 格式化流入金额（亿元）
      */
-    private TrendView generateShortTermView(TrendIndicator indicator, List<SectorMoneyFlow> flows) {
-        String viewpoint;
-        String basis;
-        TrendDirection direction = indicator.getDirection();
-
-        if (direction == TrendDirection.STRONG_UP) {
-            viewpoint = "震荡偏强";
-            basis = String.format("资金连续%d日流入，累计流入%.2f亿",
-                indicator.getConsecutiveInflowDays(),
-                indicator.getTotalInflow() / 100_000_000);
-        } else if (direction == TrendDirection.UP) {
-            viewpoint = "温和上行";
-            basis = String.format("近期涨跌幅均值%.2f%%，资金面偏积极", indicator.getAvgChangePercent());
-        } else if (direction == TrendDirection.DOWN) {
-            viewpoint = "承压调整";
-            basis = "资金流出迹象明显，短期宜谨慎";
-        } else if (direction == TrendDirection.STRONG_DOWN) {
-            viewpoint = "弱势下行";
-            basis = String.format("资金连续流出，累计流出%.2f亿",
-                Math.abs(indicator.getTotalInflow()) / 100_000_000);
-        } else {
-            viewpoint = "震荡整理";
-            basis = "多空平衡，等待方向选择";
-        }
-
-        return TrendView.builder().viewpoint(viewpoint).basis(basis).build();
+    private String formatInflow(double inflow) {
+        return String.format("%.2f亿", inflow / 100_000_000);
     }
 
-    /**
-     * 生成中期研判（1-4周）
-     */
-    private TrendView generateMidTermView(TrendIndicator indicator) {
-        String viewpoint;
-        String basis;
-
-        double avgChange = indicator.getAvgChangePercent();
-        int consecutiveDays = indicator.getConsecutiveInflowDays();
-
-        if (consecutiveDays >= 5 && avgChange > 1) {
-            viewpoint = "谨慎乐观";
-            basis = "资金持续流入叠加涨势，中期趋势向好";
-        } else if (consecutiveDays >= 3 && avgChange > 0) {
-            viewpoint = "震荡偏强";
-            basis = "资金流入态势延续，关注能否突破";
-        } else if (consecutiveDays <= -3 || avgChange < -2) {
-            viewpoint = "谨慎观望";
-            basis = "资金流出或跌幅明显，等待企稳信号";
-        } else {
-            viewpoint = "中性震荡";
-            basis = "缺乏明确方向，建议观望为主";
-        }
-
-        return TrendView.builder().viewpoint(viewpoint).basis(basis).build();
-    }
-
-    /**
-     * 计算支撑位（近N日最低价或最低涨跌幅对应价位）
-     */
-    private BigDecimal calculateSupportLevel(List<SectorMoneyFlow> flows, SectorQuote quote) {
-        if (quote != null && quote.getLowPrice() != null) {
-            return quote.getLowPrice();
-        }
-        // 无行情数据时返回null
-        return null;
-    }
-
-    /**
-     * 计算压力位（近N日最高价）
-     */
-    private BigDecimal calculateResistanceLevel(List<SectorMoneyFlow> flows, SectorQuote quote) {
-        if (quote != null && quote.getHighPrice() != null) {
-            return quote.getHighPrice();
-        }
-        return null;
-    }
-
-    /**
-     * 生成风险提示
-     */
-    private List<String> generateRiskWarnings(TrendIndicator indicator, SectorDataResult result) {
-        List<String> warnings = new ArrayList<>();
-
-        // 1. 高位风险
-        if (indicator.getAvgChangePercent() > VOLATILITY_THRESHOLD) {
-            warnings.add("近期涨幅较大，注意高位回调风险");
-        }
-
-        // 2. 资金流出风险
-        if (indicator.getConsecutiveInflowDays() < 0 && Math.abs(indicator.getConsecutiveInflowDays()) >= 3) {
-            warnings.add("资金持续流出，关注趋势反转风险");
-        }
-
-        // 3. 波动风险
-        if (result.getTodayQuote() != null) {
-            SectorQuote quote = result.getTodayQuote();
-            if (quote.getAmplitude() != null && quote.getAmplitude().doubleValue() > 5) {
-                warnings.add("当日振幅较大，短期波动加剧");
-            }
-        }
-
-        // 4. 排名下滑风险
-        if (result.getInflowRank() > 0 && result.getTotalSectors() > 0) {
-            double rankRatio = (double) result.getInflowRank() / result.getTotalSectors();
-            if (rankRatio > 0.7) {
-                warnings.add("资金流入排名靠后，板块热度下降");
-            }
-        }
-
-        return warnings.isEmpty() ? Collections.singletonList("暂无明显风险信号") : warnings;
+    private String formatInflow(BigDecimal inflow) {
+        if (inflow == null) return "0";
+        return String.format("%.2f亿", inflow.doubleValue() / 100_000_000);
     }
 }

@@ -6,6 +6,8 @@ import com.alibaba.fastjson2.JSONObject;
 import com.ershi.aspider.analysis.agent.config.AgentLlmClientFactory;
 import com.ershi.aspider.analysis.agent.config.AgentLlmProperties;
 import com.ershi.aspider.analysis.agent.domain.*;
+import com.ershi.aspider.analysis.agent.llm.prompt.PromptRenderer;
+import com.ershi.aspider.analysis.agent.llm.prompt.PromptTemplateRepository;
 import com.openai.client.OpenAIClient;
 import com.openai.models.ChatCompletion;
 import com.openai.models.ChatCompletionCreateParams;
@@ -14,12 +16,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 综合研判Agent（LLM驱动）
  *
  * 接收三个子Agent的分析结果，进行跨维度关联推理，生成综合研判
+ * Prompt模板从资源文件加载
  * 当LLM调用失败时，降级为规则合成
  *
  * @author Ershi-Gu
@@ -29,9 +34,15 @@ import java.util.List;
 public class SynthesisAgent implements Agent<SynthesisInput, SynthesisResult> {
 
     private final AgentLlmClientFactory clientFactory;
+    private final PromptTemplateRepository templateRepository;
+    private final PromptRenderer promptRenderer;
 
-    public SynthesisAgent(AgentLlmClientFactory clientFactory) {
+    public SynthesisAgent(AgentLlmClientFactory clientFactory,
+                          PromptTemplateRepository templateRepository,
+                          PromptRenderer promptRenderer) {
         this.clientFactory = clientFactory;
+        this.templateRepository = templateRepository;
+        this.promptRenderer = promptRenderer;
     }
 
     @Override
@@ -79,7 +90,7 @@ public class SynthesisAgent implements Agent<SynthesisInput, SynthesisResult> {
     }
 
     /**
-     * 构建LLM Prompt
+     * 构建LLM Prompt（从模板文件加载并渲染）
      */
     private String buildPrompt(SynthesisInput input) {
         String sectorName = input.getQuery() != null ? input.getQuery().getSectorName() : "未知板块";
@@ -87,7 +98,50 @@ public class SynthesisAgent implements Agent<SynthesisInput, SynthesisResult> {
         SectorHeat sector = input.getSectorHeat();
         TrendSignal trend = input.getTrendSignal();
 
-        // 处理空值
+        // 构建模板变量
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("sector_name", sectorName);
+
+        // 消息面变量
+        variables.put("policy_signal", policy != null ? policy.getSignal().name() : "NEUTRAL");
+        variables.put("core_drivers", policy != null && policy.getCoreDrivers() != null
+            ? String.join("；", policy.getCoreDrivers()) : "无");
+        variables.put("potential_risks", policy != null && policy.getPotentialRisks() != null
+            ? String.join("；", policy.getPotentialRisks()) : "无");
+
+        // 资金面变量
+        variables.put("capital_signal", sector != null ? sector.getCapitalSignal().name() : "NEUTRAL");
+        double mainNetInflow = sector != null && sector.getMainNetInflow() != null
+            ? sector.getMainNetInflow().doubleValue() / 100_000_000 : 0;
+        variables.put("main_net_inflow", String.format("%.2f", mainNetInflow));
+        variables.put("consecutive_inflow_days", String.valueOf(sector != null ? sector.getConsecutiveInflowDays() : 0));
+        variables.put("heat_score", String.valueOf(sector != null ? sector.getHeatScore() : 0));
+
+        // 趋势变量
+        variables.put("trend_signal", trend != null ? trend.getSignal().name() : "NEUTRAL");
+        variables.put("short_term_view", trend != null && trend.getShortTerm() != null
+            ? trend.getShortTerm().getViewpoint() : "数据不足");
+        variables.put("mid_term_view", trend != null && trend.getMidTerm() != null
+            ? trend.getMidTerm().getViewpoint() : "数据不足");
+
+        // 加载模板并渲染
+        try {
+            String template = templateRepository.getTemplate(AgentType.SYNTHESIS);
+            return promptRenderer.render(template, variables);
+        } catch (Exception e) {
+            log.warn("Prompt模板加载失败，使用内置模板", e);
+            return buildFallbackPrompt(input, sectorName);
+        }
+    }
+
+    /**
+     * 内置备用Prompt（模板加载失败时使用）
+     */
+    private String buildFallbackPrompt(SynthesisInput input, String sectorName) {
+        PolicyImpact policy = input.getPolicyImpact();
+        SectorHeat sector = input.getSectorHeat();
+        TrendSignal trend = input.getTrendSignal();
+
         String policySignal = policy != null ? policy.getSignal().name() : "NEUTRAL";
         String coreDrivers = policy != null && policy.getCoreDrivers() != null
             ? String.join("；", policy.getCoreDrivers()) : "无";
