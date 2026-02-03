@@ -1,5 +1,6 @@
 package com.ershi.aspider.analysis.retriever.domain;
 
+import com.ershi.aspider.analysis.retriever.domain.enums.TrendDirection;
 import lombok.Data;
 
 /**

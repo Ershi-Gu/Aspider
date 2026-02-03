@@ -1,5 +1,6 @@
 package com.ershi.aspider.analysis.retriever.domain;
 
+import com.ershi.aspider.analysis.retriever.domain.enums.RetrievalSource;
 import com.ershi.aspider.data.datasource.domain.FinancialArticle;
 import lombok.Data;
 

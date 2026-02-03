@@ -2,7 +2,7 @@ package com.ershi.aspider.analysis.retriever;
 
 import com.ershi.aspider.analysis.retriever.domain.AnalysisQuery;
 import com.ershi.aspider.analysis.retriever.domain.NewsRetrievalResult;
-import com.ershi.aspider.analysis.retriever.domain.RetrievalSource;
+import com.ershi.aspider.analysis.retriever.domain.enums.RetrievalSource;
 import com.ershi.aspider.analysis.retriever.domain.RetrievedArticle;
 import com.ershi.aspider.data.datasource.domain.FinancialArticle;
 import com.ershi.aspider.data.datasource.domain.NewsTypeEnum;

@@ -4,7 +4,7 @@ import com.ershi.aspider.analysis.retriever.domain.AnalysisQuery;
 import com.ershi.aspider.analysis.retriever.domain.NewsRetrievalResult;
 import com.ershi.aspider.analysis.retriever.domain.RetrievalResult;
 import com.ershi.aspider.analysis.retriever.domain.SectorDataResult;
-import com.ershi.aspider.analysis.retriever.domain.TrendDirection;
+import com.ershi.aspider.analysis.retriever.domain.enums.TrendDirection;
 import com.ershi.aspider.analysis.retriever.domain.TrendIndicator;
 import lombok.Data;
 import org.slf4j.Logger;

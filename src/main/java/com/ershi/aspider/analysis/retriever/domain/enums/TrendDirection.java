@@ -1,4 +1,4 @@
-package com.ershi.aspider.analysis.retriever.domain;
+package com.ershi.aspider.analysis.retriever.domain.enums;
 
 /**
  * 趋势方向枚举

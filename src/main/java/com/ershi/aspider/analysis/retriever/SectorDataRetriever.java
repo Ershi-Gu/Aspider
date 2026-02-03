@@ -2,7 +2,7 @@ package com.ershi.aspider.analysis.retriever;
 
 import com.ershi.aspider.analysis.retriever.domain.AnalysisQuery;
 import com.ershi.aspider.analysis.retriever.domain.SectorDataResult;
-import com.ershi.aspider.analysis.retriever.domain.TrendDirection;
+import com.ershi.aspider.analysis.retriever.domain.enums.TrendDirection;
 import com.ershi.aspider.analysis.retriever.domain.TrendIndicator;
 import com.ershi.aspider.data.datasource.domain.SectorMoneyFlow;
 import com.ershi.aspider.data.datasource.domain.SectorQuote;

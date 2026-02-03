@@ -1,5 +1,6 @@
 package com.ershi.aspider.analysis.retriever.domain;
 
+import com.ershi.aspider.analysis.retriever.domain.enums.AnalysisType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
