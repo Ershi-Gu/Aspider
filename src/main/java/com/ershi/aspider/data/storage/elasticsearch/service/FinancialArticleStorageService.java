@@ -39,13 +39,16 @@ public class FinancialArticleStorageService {
     /** 混合检索最低相似度分数阈值（归一化后的分数，范围0-1） */
     private static final double HYBRID_SCORE_THRESHOLD = 0.6;
 
-    /** 混合检索分数归一化基准值（经验值，用于将原始分数归一化到0-1范围） */
-    private static final double HYBRID_SCORE_NORMALIZATION_BASE = 20.0;
+    /** 混合检索分数归一化基准值（经验值，用于将原始分数归一化到0-1范围，双向量检索后适当提高） */
+    private static final double HYBRID_SCORE_NORMALIZATION_BASE = 25.0;
 
-    /** 混合检索中向量检索的权重 */
-    private static final float VECTOR_BOOST = 2.0f;
+    /** 混合检索中摘要向量检索的权重 */
+    private static final float SUMMARY_VECTOR_BOOST = 2.0f;
 
-    /** 混合检索中标题匹配的权重 */
+    /** 混合检索中标题向量检索的权重 */
+    private static final float TITLE_VECTOR_BOOST = 1.5f;
+
+    /** 混合检索中标题关键词匹配的权重 */
     private static final float TITLE_BOOST = 3.0f;
 
     /** 混合检索中摘要匹配的权重 */
@@ -467,13 +470,21 @@ public class FinancialArticleStorageService {
                                 )
                             )
                         )
-                        // 向量检索部分（高权重）
+                        // 摘要向量检索（主要语义匹配）
                         .knn(k -> k
                             .field("summaryVector")
                             .queryVector(queryVector)
                             .k(topK * 5)
                             .numCandidates(topK * 20)
-                            .boost(VECTOR_BOOST)
+                            .boost(SUMMARY_VECTOR_BOOST)
+                        )
+                        // 标题向量检索（补充语义匹配，提高召回率）
+                        .knn(k -> k
+                            .field("titleVector")
+                            .queryVector(queryVector)
+                            .k(topK * 3)
+                            .numCandidates(topK * 10)
+                            .boost(TITLE_VECTOR_BOOST)
                         ),
                     FinancialArticle.class
                 );
@@ -508,12 +519,21 @@ public class FinancialArticleStorageService {
                                 )
                             )
                         )
+                        // 摘要向量检索（主要语义匹配）
                         .knn(k -> k
                             .field("summaryVector")
                             .queryVector(queryVector)
                             .k(topK * 5)
                             .numCandidates(topK * 20)
-                            .boost(VECTOR_BOOST)
+                            .boost(SUMMARY_VECTOR_BOOST)
+                        )
+                        // 标题向量检索（补充语义匹配，提高召回率）
+                        .knn(k -> k
+                            .field("titleVector")
+                            .queryVector(queryVector)
+                            .k(topK * 3)
+                            .numCandidates(topK * 10)
+                            .boost(TITLE_VECTOR_BOOST)
                         ),
                     FinancialArticle.class
                 );
