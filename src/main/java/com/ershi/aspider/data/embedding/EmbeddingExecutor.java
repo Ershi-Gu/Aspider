@@ -38,21 +38,15 @@ public class EmbeddingExecutor {
     /** 向量化配置 */
     private final EmbeddingConfig embeddingConfig;
 
-    /**
-     * Spring 会自动注入当前激活的 EmbeddingService 实现，通过 @ConditionalOnProperty 控制只有一个实现被加载
-     */
     public EmbeddingExecutor(EmbeddingService embeddingService, Executor aspiderVirtualExecutor,
                              EmbeddingConfig embeddingConfig) {
         this.embeddingService = embeddingService;
         this.aspiderVirtualExecutor = aspiderVirtualExecutor;
         this.embeddingConfig = embeddingConfig;
-        // RPM限制：每分钟最大请求数，使用令牌桶实现
         this.bucket = Bucket.builder()
             .addLimit(Bandwidth.simple(embeddingConfig.getRpmLimit(), Duration.ofMinutes(1)))
             .build();
-        log.info("向量化执行器初始化完成，当前使用：{}，RPM限制：{}",
-                 embeddingService.getProviderType().getDescription(),
-                 embeddingConfig.getRpmLimit());
+        log.info("向量化执行器初始化完成，RPM限制：{}", embeddingConfig.getRpmLimit());
     }
 
     /**
