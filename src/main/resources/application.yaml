@@ -30,28 +30,28 @@ embedding: # 文本向量化配置
 processor: # 数据处理模块
   scorer: # 文章评分配置
     strategy: rule  # 评分策略：rule（规则）/ llm（大模型）
-  summary-quality: # 摘要质量评估配置
-    enable: false                      # 是否启用摘要质量评估
-    low-quality-threshold: 60          # 低质量阈值（低于此分数强制触发LLM）
-    high-quality-threshold: 75         # 高质量阈值（高于此分数无需处理）
-    min-length: 30                     # 摘要最小有效长度
-    ideal-length-min: 80               # 摘要理想最小长度
-    ideal-length-max: 200              # 摘要理想最大长度
-    max-length: 400                    # 摘要最大长度
-    title-similarity-threshold: 0.7    # 标题相似度阈值
-    force-high-value: false            # 是否对高价值文章强制触发LLM
-    max-llm-per-batch: 40              # 单批次LLM调用上限
-  content-extraction: # 文章数据摘要提取配置，用于提取长文本内容，输出摘要供后续操作
-    short-text-threshold: 500      # 短文本阈值
-    medium-text-threshold: 2000    # 中文本阈值
-    medium-text-truncate-length: 600  # 中文本截取长度
-    llm-summary: # LLM摘要提取配置
-      enable: false                # 是否启用LLM总结
-      target-length: 200           # 摘要目标长度
-      provider: qwen               # 提供商：qwen/gemini
-      model: qwen3-max            # 模型名称
-      api-key: your-llm-api-key    # API密钥
-      base-url:                    # 自定义请求api，Gemini支持使用第三方api，未填写则使用官方api
+  summary: # 摘要处理配置（合并提取+质量评估+LLM）
+    enable-quality: false                  # 是否启用摘要质量评估与优化
+    extraction: # 提取配置
+      short-text-threshold: 500            # 短文本阈值（小于此长度直接返回全文）
+      medium-text-threshold: 2000          # 中文本阈值（小于此长度进行截取）
+      truncate-length: 600                 # 中文本截取长度
+    quality: # 质量评估配置
+      low-threshold: 60                    # 低质量阈值（低于此分数强制触发LLM）
+      high-threshold: 75                   # 高质量阈值（高于此分数无需处理）
+      min-length: 30                       # 摘要最小有效长度
+      ideal-length-min: 80                 # 摘要理想最小长度
+      ideal-length-max: 200                # 摘要理想最大长度
+      max-length: 400                      # 摘要最大长度
+      title-similarity-threshold: 0.7      # 标题相似度阈值
+    llm: # LLM配置（OpenAI兼容格式）
+      enable: false                        # 是否启用LLM摘要生成
+      target-length: 200                   # 摘要目标长度
+      model: gpt-4o-mini                   # 模型名称
+      api-key: your-llm-api-key            # API密钥
+      base-url: https://api.openai.com/v1/chat/completions  # API地址
+      force-high-value: false              # 是否对高价值文章强制触发LLM
+      max-per-batch: 40                    # 单批次LLM调用上限
 
 analysis: # 分析模块配置
   summary-fallback: # 分析阶段摘要兜底配置

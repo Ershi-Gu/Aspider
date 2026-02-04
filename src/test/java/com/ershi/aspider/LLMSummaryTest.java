@@ -1,7 +1,7 @@
 package com.ershi.aspider;
 
 import com.ershi.aspider.data.processor.cleaner.FinancialArticleCleaner;
-import com.ershi.aspider.data.processor.extractor.service.LLMSummaryExecutor;
+import com.ershi.aspider.data.processor.summary.service.LLMSummaryService;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,7 +16,7 @@ public class LLMSummaryTest {
     private FinancialArticleCleaner financialArticleCleaner;
 
     @Resource
-    private LLMSummaryExecutor llmSummaryExecutor;
+    private LLMSummaryService llmSummaryService;
 
     @Test
     public void testGenerateSummary() {
@@ -28,7 +28,7 @@ public class LLMSummaryTest {
         System.out.println("---原文---");
         System.out.println(content);
 
-        String summary = llmSummaryExecutor.generateSummary(content);
+        String summary = llmSummaryService.generateSummary(content);
 
         System.out.println("---摘要---");
         System.out.println(summary);
@@ -44,12 +44,11 @@ public class LLMSummaryTest {
 
         System.out.println("原文长度：" + content.length());
 
-        // 测试不同目标长度
-        String summary50 = llmSummaryExecutor.generateSummary(content, 50);
+        String summary50 = llmSummaryService.generateSummary(content, 50);
         System.out.println("目标50字摘要：" + summary50);
         System.out.println("实际长度：" + summary50.length());
 
-        String summary100 = llmSummaryExecutor.generateSummary(content, 100);
+        String summary100 = llmSummaryService.generateSummary(content, 100);
         System.out.println("目标100字摘要：" + summary100);
         System.out.println("实际长度：" + summary100.length());
     }

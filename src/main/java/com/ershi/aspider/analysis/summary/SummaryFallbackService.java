@@ -3,7 +3,7 @@ package com.ershi.aspider.analysis.summary;
 import com.ershi.aspider.analysis.retriever.domain.RetrievedArticle;
 import com.ershi.aspider.data.datasource.domain.FinancialArticle;
 import com.ershi.aspider.data.datasource.domain.SummarySourceEnum;
-import com.ershi.aspider.data.processor.extractor.service.LLMSummaryExecutor;
+import com.ershi.aspider.data.processor.summary.service.LLMSummaryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,14 +28,14 @@ public class SummaryFallbackService {
     private static final Logger log = LoggerFactory.getLogger(SummaryFallbackService.class);
 
     private final SummaryFallbackConfig config;
-    private final LLMSummaryExecutor llmSummaryExecutor;
+    private final LLMSummaryService llmSummaryService;
 
     private final Map<String, String> summaryCache = new ConcurrentHashMap<>();
 
     public SummaryFallbackService(SummaryFallbackConfig config,
-                                   @Autowired(required = false) LLMSummaryExecutor llmSummaryExecutor) {
+                                   @Autowired(required = false) LLMSummaryService llmSummaryService) {
         this.config = config;
-        this.llmSummaryExecutor = llmSummaryExecutor;
+        this.llmSummaryService = llmSummaryService;
     }
 
     /**
@@ -46,8 +46,8 @@ public class SummaryFallbackService {
             return;
         }
 
-        if (llmSummaryExecutor == null) {
-            log.debug("LLM执行器未启用，跳过摘要兜底");
+        if (llmSummaryService == null) {
+            log.debug("LLM服务未启用，跳过摘要兜底");
             return;
         }
 
@@ -102,7 +102,7 @@ public class SummaryFallbackService {
         }
 
         try {
-            String newSummary = llmSummaryExecutor.generateSummary(content);
+            String newSummary = llmSummaryService.generateSummary(content);
             if (newSummary != null && !newSummary.trim().isEmpty()) {
                 article.setSummary(newSummary);
                 article.setSummarySource(SummarySourceEnum.ANALYSIS_LLM);

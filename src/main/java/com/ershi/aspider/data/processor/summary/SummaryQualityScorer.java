@@ -2,7 +2,7 @@ package com.ershi.aspider.data.processor.summary;
 
 import com.ershi.aspider.data.datasource.domain.FinancialArticle;
 import com.ershi.aspider.data.datasource.domain.SummaryQualityLevel;
-import com.ershi.aspider.data.processor.summary.config.SummaryQualityConfig;
+import com.ershi.aspider.data.processor.summary.config.SummaryConfig;
 import com.ershi.aspider.data.processor.summary.domain.SummaryQualityResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,9 +24,9 @@ public class SummaryQualityScorer {
 
     private static final Logger log = LoggerFactory.getLogger(SummaryQualityScorer.class);
 
-    private final SummaryQualityConfig config;
+    private final SummaryConfig config;
 
-    public SummaryQualityScorer(SummaryQualityConfig config) {
+    public SummaryQualityScorer(SummaryConfig config) {
         this.config = config;
     }
 
@@ -34,7 +34,7 @@ public class SummaryQualityScorer {
      * 批量评分并应用到文章
      */
     public void scoreBatch(List<FinancialArticle> articles) {
-        if (!config.getEnable()) {
+        if (!config.getEnableQuality()) {
             return;
         }
         log.info("开始摘要质量评分，共 {} 条", articles.size());
@@ -68,18 +68,20 @@ public class SummaryQualityScorer {
             return SummaryQualityResult.emptySummary();
         }
 
+        SummaryConfig.Quality qualityConfig = config.getQuality();
+
         int totalScore = 100;
         List<String> reasons = new ArrayList<>();
 
-        totalScore = checkLength(summary, totalScore, reasons);
-        totalScore = checkTitleOverlap(summary, article.getTitle(), totalScore, reasons);
-        totalScore = checkBoilerplate(summary, totalScore, reasons);
+        totalScore = checkLength(summary, totalScore, reasons, qualityConfig);
+        totalScore = checkTitleOverlap(summary, article.getTitle(), totalScore, reasons, qualityConfig);
+        totalScore = checkBoilerplate(summary, totalScore, reasons, qualityConfig);
         totalScore = checkInformationDensity(summary, totalScore, reasons);
 
         totalScore = Math.max(0, Math.min(100, totalScore));
 
         SummaryQualityLevel level = SummaryQualityLevel.fromScore(
-            totalScore, config.getHighQualityThreshold(), config.getLowQualityThreshold());
+            totalScore, qualityConfig.getHighThreshold(), qualityConfig.getLowThreshold());
 
         boolean needLlm = level == SummaryQualityLevel.LOW;
 
@@ -94,25 +96,25 @@ public class SummaryQualityScorer {
     /**
      * 长度检查
      */
-    private int checkLength(String summary, int score, List<String> reasons) {
+    private int checkLength(String summary, int score, List<String> reasons, SummaryConfig.Quality cfg) {
         int length = summary.length();
 
-        if (length < config.getMinLength()) {
+        if (length < cfg.getMinLength()) {
             reasons.add("摘要过短（" + length + "字）");
             return score - 40;
         }
 
-        if (length > config.getMaxLength()) {
+        if (length > cfg.getMaxLength()) {
             reasons.add("摘要过长（" + length + "字）");
             return score - 15;
         }
 
-        if (length < config.getIdealLengthMin()) {
+        if (length < cfg.getIdealLengthMin()) {
             reasons.add("摘要偏短（" + length + "字）");
             return score - 10;
         }
 
-        if (length > config.getIdealLengthMax()) {
+        if (length > cfg.getIdealLengthMax()) {
             reasons.add("摘要偏长（" + length + "字）");
             return score - 5;
         }
@@ -123,13 +125,13 @@ public class SummaryQualityScorer {
     /**
      * 标题重叠度检查
      */
-    private int checkTitleOverlap(String summary, String title, int score, List<String> reasons) {
+    private int checkTitleOverlap(String summary, String title, int score, List<String> reasons, SummaryConfig.Quality cfg) {
         if (title == null || title.isEmpty()) {
             return score;
         }
 
         double similarity = calculateSimilarity(summary, title);
-        if (similarity >= config.getTitleSimilarityThreshold()) {
+        if (similarity >= cfg.getTitleSimilarityThreshold()) {
             reasons.add("与标题高度重复（相似度" + String.format("%.0f%%", similarity * 100) + "）");
             return score - 30;
         }
@@ -145,9 +147,9 @@ public class SummaryQualityScorer {
     /**
      * 模板/噪声检查
      */
-    private int checkBoilerplate(String summary, int score, List<String> reasons) {
+    private int checkBoilerplate(String summary, int score, List<String> reasons, SummaryConfig.Quality cfg) {
         int hitCount = 0;
-        for (String pattern : config.getBoilerplatePatterns()) {
+        for (String pattern : cfg.getBoilerplatePatterns()) {
             if (summary.contains(pattern)) {
                 hitCount++;
             }
