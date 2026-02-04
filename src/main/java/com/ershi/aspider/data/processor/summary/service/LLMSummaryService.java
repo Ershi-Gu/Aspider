@@ -3,6 +3,8 @@ package com.ershi.aspider.data.processor.summary.service;
 import com.ershi.aspider.data.processor.summary.config.SummaryConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.bucket4j.Bandwidth;
+import io.github.bucket4j.Bucket;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,7 @@ public class LLMSummaryService {
     private final SummaryConfig config;
     private final ObjectMapper objectMapper;
     private HttpClient httpClient;
+    private Bucket bucket;
 
     public LLMSummaryService(SummaryConfig config) {
         this.config = config;
@@ -46,9 +49,16 @@ public class LLMSummaryService {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .build();
-        log.info("LLM摘要服务初始化完成，模型：{}，端点：{}",
+
+        Integer rpmLimit = config.getLlm().getRpmLimit();
+        this.bucket = Bucket.builder()
+            .addLimit(Bandwidth.simple(rpmLimit, Duration.ofMinutes(1)))
+            .build();
+
+        log.info("LLM摘要服务初始化完成，模型：{}，端点：{}，RPM限制：{}",
             config.getLlm().getModel(),
-            config.getLlm().getBaseUrl());
+            config.getLlm().getBaseUrl(),
+            rpmLimit);
     }
 
     /**
@@ -99,9 +109,11 @@ public class LLMSummaryService {
     }
 
     /**
-     * 调用 OpenAI 兼容格式的 LLM API
+     * 调用 OpenAI 兼容格式的 LLM API（带限流）
      */
     private String callLlmApi(String prompt) throws Exception {
+        bucket.asBlocking().consume(1);
+
         SummaryConfig.Llm llmConfig = config.getLlm();
 
         Map<String, Object> requestBody = Map.of(

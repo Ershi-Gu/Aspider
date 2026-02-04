@@ -123,5 +123,8 @@ public class SummaryConfig {
 
         /** 单批次 LLM 调用上限 */
         private Integer maxPerBatch = 40;
+
+        /** RPM 限制：每分钟最大请求数 */
+        private Integer rpmLimit = 15;
     }
 }

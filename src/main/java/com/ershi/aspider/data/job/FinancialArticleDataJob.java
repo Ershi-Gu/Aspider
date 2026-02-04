@@ -5,6 +5,7 @@ import com.ershi.aspider.data.orchestration.service.FinancialArticleDataService;
 import com.ershi.aspider.data.storage.elasticsearch.service.FinancialArticleStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -46,6 +47,7 @@ public class FinancialArticleDataJob {
      * 定时任务：获取所有数据源数据并处理（采集即向量化）
      * 每2小时执行一次
      */
+    @Async
     @Scheduled(cron = "0 0 0/2 * * ?")
     public void scheduledProcessAllDataSources() {
         log.info("定时任务启动：开始获取所有数据源数据");
@@ -64,6 +66,7 @@ public class FinancialArticleDataJob {
      * <p>
      * 清理规则：删除 crawlTime 早于90天且 importance < 3 的普通新闻
      */
+    @Async
     @Scheduled(cron = "0 0 2 * * ?")
     public void scheduledCleanExpiredData() {
         log.info("定时清理任务启动：开始分层清理超过 {} 天的低重要性新闻数据", RETENTION_DAYS);

@@ -46,6 +46,7 @@ processor: # 数据处理模块
       base-url: https://api.openai.com/v1/chat/completions  # API地址
       force-high-value: false              # 是否对高价值文章强制触发LLM
       max-per-batch: 40                    # 单批次LLM调用上限
+      rpm-limit: 5                        # 每分钟最大请求数（RPM限流）
 
 analysis: # 分析模块配置
   summary-fallback: # 分析阶段摘要兜底配置
