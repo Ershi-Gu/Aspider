@@ -4,6 +4,7 @@ import com.ershi.aspider.analysis.retriever.domain.AnalysisQuery;
 import com.ershi.aspider.analysis.retriever.domain.NewsRetrievalResult;
 import com.ershi.aspider.analysis.retriever.domain.enums.RetrievalSource;
 import com.ershi.aspider.analysis.retriever.domain.RetrievedArticle;
+import com.ershi.aspider.analysis.summary.SummaryFallbackService;
 import com.ershi.aspider.data.datasource.domain.FinancialArticle;
 import com.ershi.aspider.data.datasource.domain.NewsTypeEnum;
 import com.ershi.aspider.data.embedding.service.EmbeddingService;
@@ -47,10 +48,14 @@ public class NewsRetriever implements DataRetriever<AnalysisQuery, NewsRetrieval
 
     private final FinancialArticleStorageService storageService;
     private final EmbeddingService embeddingService;
+    private final SummaryFallbackService summaryFallbackService;
 
-    public NewsRetriever(FinancialArticleStorageService storageService, EmbeddingService embeddingService) {
+    public NewsRetriever(FinancialArticleStorageService storageService,
+                         EmbeddingService embeddingService,
+                         SummaryFallbackService summaryFallbackService) {
         this.storageService = storageService;
         this.embeddingService = embeddingService;
+        this.summaryFallbackService = summaryFallbackService;
     }
 
     @Override
@@ -73,6 +78,9 @@ public class NewsRetriever implements DataRetriever<AnalysisQuery, NewsRetrieval
 
         // 合并去重，按评分降序截取 topK
         List<RetrievedArticle> merged = mergeAndDeduplicate(topK, sectorArticles, policyArticles, importantArticles);
+
+        // 分析阶段摘要兜底
+        summaryFallbackService.processFallback(merged);
 
         log.info("新闻检索完成，候选{}条，去重后返回{}条", totalCandidates, merged.size());
 

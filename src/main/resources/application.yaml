@@ -30,6 +30,17 @@ embedding: # 文本向量化配置
 processor: # 数据处理模块
   scorer: # 文章评分配置
     strategy: rule  # 评分策略：rule（规则）/ llm（大模型）
+  summary-quality: # 摘要质量评估配置
+    enable: false                      # 是否启用摘要质量评估
+    low-quality-threshold: 60          # 低质量阈值（低于此分数强制触发LLM）
+    high-quality-threshold: 75         # 高质量阈值（高于此分数无需处理）
+    min-length: 30                     # 摘要最小有效长度
+    ideal-length-min: 80               # 摘要理想最小长度
+    ideal-length-max: 200              # 摘要理想最大长度
+    max-length: 400                    # 摘要最大长度
+    title-similarity-threshold: 0.7    # 标题相似度阈值
+    force-high-value: false            # 是否对高价值文章强制触发LLM
+    max-llm-per-batch: 40              # 单批次LLM调用上限
   content-extraction: # 文章数据摘要提取配置，用于提取长文本内容，输出摘要供后续操作
     short-text-threshold: 500      # 短文本阈值
     medium-text-threshold: 2000    # 中文本阈值
@@ -43,6 +54,16 @@ processor: # 数据处理模块
       base-url:                    # 自定义请求api，Gemini支持使用第三方api，未填写则使用官方api
 
 analysis: # 分析模块配置
+  summary-fallback: # 分析阶段摘要兜底配置
+    enable: false                      # 是否启用分析阶段兜底
+    min-quality-score: 60              # 触发兜底的最低质量评分
+    topk-limit: 10                     # 兜底处理的TopK限制
+    max-llm-per-request: 5             # 单次分析请求最大LLM调用数
+    write-back: false                  # 是否写回ES
+    cache:
+      type: memory                     # 缓存类型
+      max-size: 2000                   # 最大缓存条数
+      ttl: 12h                         # 缓存过期时间
   agent: # Agent分析模块
     llm: # LLM多API配置（支持全局默认 + 按Agent覆盖）
       default: # 全局默认配置

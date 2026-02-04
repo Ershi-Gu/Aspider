@@ -31,6 +31,18 @@ public class FinancialArticle {
     /** 摘要 */
     private String summary;
 
+    /** 原始摘要（数据源自带，用于备份和回滚） */
+    private String summaryRaw;
+
+    /** 摘要来源：RAW/LLM/EXTRACTED/TRUNCATED/ANALYSIS_LLM */
+    private SummarySourceEnum summarySource = SummarySourceEnum.RAW;
+
+    /** 摘要质量评分 0-100 */
+    private Integer summaryQualityScore;
+
+    /** 摘要质量等级：HIGH/MEDIUM/LOW */
+    private SummaryQualityLevel summaryQualityLevel;
+
     /** 摘要向量（用于语义搜索） */
     private List<Double> summaryVector;
 

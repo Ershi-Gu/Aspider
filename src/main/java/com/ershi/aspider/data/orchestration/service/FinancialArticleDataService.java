@@ -8,6 +8,7 @@ import com.ershi.aspider.data.embedding.EmbeddingExecutor;
 import com.ershi.aspider.data.processor.cleaner.FinancialArticleCleaner;
 import com.ershi.aspider.data.processor.extractor.ContentExtractor;
 import com.ershi.aspider.data.processor.scorer.ArticleScorer;
+import com.ershi.aspider.data.processor.summary.SummaryQualityDecisionService;
 import com.ershi.aspider.data.storage.elasticsearch.service.FinancialArticleStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,7 @@ public class FinancialArticleDataService {
     private final ContentExtractor contentExtractor;
     private final EmbeddingExecutor embeddingExecutor;
     private final ArticleScorer articleScorer;
+    private final SummaryQualityDecisionService summaryQualityDecisionService;
     private final FinancialArticleStorageService storageService;
 
     public FinancialArticleDataService(FinancialArticleDSFactory financialArticleDSFactory,
@@ -40,12 +42,14 @@ public class FinancialArticleDataService {
                                        ContentExtractor contentExtractor,
                                        EmbeddingExecutor embeddingExecutor,
                                        ArticleScorer articleScorer,
+                                       SummaryQualityDecisionService summaryQualityDecisionService,
                                        FinancialArticleStorageService storageService) {
         this.financialArticleDSFactory = financialArticleDSFactory;
         this.financialArticleCleaner = financialArticleCleaner;
         this.contentExtractor = contentExtractor;
         this.embeddingExecutor = embeddingExecutor;
         this.articleScorer = articleScorer;
+        this.summaryQualityDecisionService = summaryQualityDecisionService;
         this.storageService = storageService;
     }
 
@@ -82,7 +86,7 @@ public class FinancialArticleDataService {
     /**
      * 采集即向量化处理管道
      * <p>
-     * 流程：数据清洗 → 重要性评分 → 摘要提取 → 向量化 → 持久化
+     * 流程：数据清洗 → 重要性评分 → 摘要质量优化 → 摘要提取 → 向量化 → 持久化
      */
     private int executePipeline(List<FinancialArticle> financialArticle) {
         // 1. 数据清洗
@@ -91,20 +95,24 @@ public class FinancialArticleDataService {
             log.warn("清洗后无有效数据");
             return 0;
         }
-        log.info("[Step 1/4] 数据清洗完成，有效数据 {} 条", cleanedData.size());
+        log.info("[Step 1/5] 数据清洗完成，有效数据 {} 条", cleanedData.size());
 
         // 2. 重要性评分
         articleScorer.scoreBatch(cleanedData);
-        log.info("[Step 2/4] 重要性评分完成");
+        log.info("[Step 2/5] 重要性评分完成");
 
-        // 3. 摘要提取 + 向量化
+        // 3. 摘要质量优化（评分+选择性LLM）
+        summaryQualityDecisionService.processBatch(cleanedData);
+        log.info("[Step 3/5] 摘要质量优化完成");
+
+        // 4. 摘要提取 + 向量化
         embedData(cleanedData);
-        log.info("[Step 3/4] 摘要提取和向量化完成");
+        log.info("[Step 4/5] 摘要提取和向量化完成");
 
-        // 4. 标记为已处理并持久化
+        // 5. 标记为已处理并持久化
         cleanedData.forEach(item -> item.setProcessed(true));
         int successCount = storageService.batchSaveToEs(cleanedData);
-        log.info("[Step 4/4] 持久化完成，成功保存 {} 条数据", successCount);
+        log.info("[Step 5/5] 持久化完成，成功保存 {} 条数据", successCount);
 
         log.info("========== 采集即向量化流程完成 ==========");
         return successCount;
