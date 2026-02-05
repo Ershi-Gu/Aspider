@@ -115,8 +115,8 @@ public class SummaryConfig {
         /** API 密钥 */
         private String apiKey;
 
-        /** API 地址（OpenAI 兼容格式，如 https://api.openai.com/v1/chat/completions） */
-        private String baseUrl = "https://api.openai.com/v1/chat/completions";
+        /** API 地址（API根路径，SDK 会自动拼接 /chat/completions，如 https://api.openai.com/v1） */
+        private String baseUrl = "https://api.openai.com/v1";
 
         /** 是否对高价值文章强制触发 LLM */
         private Boolean forceHighValue = false;

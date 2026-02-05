@@ -1,8 +1,10 @@
 package com.ershi.aspider.data.processor.summary.service;
 
 import com.ershi.aspider.data.processor.summary.config.SummaryConfig;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.ChatCompletion;
+import com.openai.models.ChatCompletionCreateParams;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.annotation.PostConstruct;
@@ -11,20 +13,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * LLM摘要服务（OpenAI兼容格式）
+ * LLM摘要服务（OpenAI SDK 实现）
  * <p>
- * 统一使用 OpenAI API 格式，兼容：
+ * 使用 OpenAI 官方 Java SDK，兼容：
  * OpenAI、Azure OpenAI、Qwen、DeepSeek、Moonshot 等遵循 OpenAI 格式的服务
+ * <p>
+ * 注意：base-url 配置应为 API 根路径（如 https://api.openai.com/v1），
+ * SDK 会自动拼接 /chat/completions 等路径
  *
  * @author Ershi-Gu
  */
@@ -35,29 +35,32 @@ public class LLMSummaryService {
     private static final Logger log = LoggerFactory.getLogger(LLMSummaryService.class);
 
     private final SummaryConfig config;
-    private final ObjectMapper objectMapper;
-    private HttpClient httpClient;
+    private OpenAIClient client;
     private Bucket bucket;
 
     public LLMSummaryService(SummaryConfig config) {
         this.config = config;
-        this.objectMapper = new ObjectMapper();
     }
 
     @PostConstruct
     public void init() {
-        this.httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
+        SummaryConfig.Llm llmConfig = config.getLlm();
+
+        // 初始化 OpenAI SDK 客户端
+        this.client = OpenAIOkHttpClient.builder()
+            .baseUrl(llmConfig.getBaseUrl())
+            .apiKey(llmConfig.getApiKey())
             .build();
 
-        Integer rpmLimit = config.getLlm().getRpmLimit();
+        // 初始化 RPM 限流器
+        Integer rpmLimit = llmConfig.getRpmLimit();
         this.bucket = Bucket.builder()
             .addLimit(Bandwidth.simple(rpmLimit, Duration.ofMinutes(1)))
             .build();
 
         log.info("LLM摘要服务初始化完成，模型：{}，端点：{}，RPM限制：{}",
-            config.getLlm().getModel(),
-            config.getLlm().getBaseUrl(),
+            llmConfig.getModel(),
+            llmConfig.getBaseUrl(),
             rpmLimit);
     }
 
@@ -109,47 +112,32 @@ public class LLMSummaryService {
     }
 
     /**
-     * 调用 OpenAI 兼容格式的 LLM API（带限流）
+     * 调用 OpenAI SDK（带限流）
      */
     private String callLlmApi(String prompt) throws Exception {
+        // 限流等待
         bucket.asBlocking().consume(1);
 
         SummaryConfig.Llm llmConfig = config.getLlm();
 
-        Map<String, Object> requestBody = Map.of(
-            "model", llmConfig.getModel(),
-            "messages", List.of(
-                Map.of("role", "user", "content", prompt)
-            ),
-            "temperature", 0.3
-        );
-
-        String jsonBody = objectMapper.writeValueAsString(requestBody);
-
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(llmConfig.getBaseUrl()))
-            .header("Content-Type", "application/json")
-            .header("Authorization", "Bearer " + llmConfig.getApiKey())
-            .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-            .timeout(Duration.ofSeconds(60))
+        // 构建请求参数
+        ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
+            .model(llmConfig.getModel())
+            .addUserMessage(prompt)
+            .temperature(0.3)
             .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        // 调用 LLM
+        ChatCompletion completion = client.chat().completions().create(params);
 
-        if (response.statusCode() != 200) {
-            log.error("LLM API 调用失败，状态码：{}，响应：{}", response.statusCode(), response.body());
-            return "";
-        }
+        // 提取响应内容
+        String summary = completion.choices().get(0).message().content().orElse("");
 
-        JsonNode root = objectMapper.readTree(response.body());
-        JsonNode choices = root.path("choices");
-
-        if (choices.isEmpty()) {
+        if (summary.isBlank()) {
             log.error("LLM API 返回结果为空");
             return "";
         }
 
-        String summary = choices.get(0).path("message").path("content").asText();
         log.debug("摘要生成成功，原文长度：{}，摘要长度：{}", prompt.length(), summary.length());
         return summary;
     }
