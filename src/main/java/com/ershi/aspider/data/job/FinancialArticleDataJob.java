@@ -50,14 +50,14 @@ public class FinancialArticleDataJob {
     @Async
     @Scheduled(cron = "0 0 0/2 * * ?")
     public void scheduledProcessAllDataSources() {
-        log.info("定时任务启动：开始获取所有数据源数据");
+        log.info("定时任务启动：开始采集财经新闻数据");
 
         try {
             int savedCount = financialArticleDataService.processAllFinancialArticle();
-            log.info("定时任务完成，成功保存 {} 条新数据", savedCount);
+            log.info("定时任务完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("定时任务执行失败", e);
+            log.error("定时任务执行失败：采集财经新闻数据", e);
         }
     }
 
@@ -77,7 +77,7 @@ public class FinancialArticleDataJob {
             log.info("定时清理任务完成，共清理 {} 条低重要性过期数据", deletedCount);
 
         } catch (Exception e) {
-            log.error("定时清理任务执行失败", e);
+            log.error("定时任务执行失败：分层清理过期新闻数据", e);
         }
     }
 
@@ -89,10 +89,10 @@ public class FinancialArticleDataJob {
 
         try {
             int savedCount = financialArticleDataService.processFinancialArticle(sourceType);
-            log.info("手动触发完成，成功保存 {} 条新数据", savedCount);
+            log.info("手动触发完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("手动触发失败", e);
+            log.error("手动触发执行失败：处理数据源 [{}]", sourceType.getDesc(), e);
         }
     }
 

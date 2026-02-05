@@ -46,14 +46,14 @@ public class SectorMoneyFlowDataJob {
      */
     @Scheduled(cron = "0 0/30 9-11,13-15 * * MON-FRI")
     public void scheduledRealtimeProcess() {
-        log.info("盘中实时采集启动：开始采集板块资金流向数据");
+        log.info("定时任务启动：开始盘中实时采集板块资金流向数据");
 
         try {
             int savedCount = sectorDataService.processAllSectorMoneyFlow();
-            log.info("盘中实时采集完成，成功保存 {} 条数据", savedCount);
+            log.info("定时任务完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("盘中实时采集失败", e);
+            log.error("定时任务执行失败：盘中实时采集板块资金流向数据", e);
         }
     }
 
@@ -62,14 +62,14 @@ public class SectorMoneyFlowDataJob {
      */
     @Scheduled(cron = "0 30 15 * * MON-FRI")
     public void scheduledMoneyFlowAfterMarketClose() {
-        log.info("收盘采集启动：开始采集当日完整板块资金流向数据");
+        log.info("定时任务启动：开始收盘采集当日完整板块资金流向数据");
 
         try {
             int savedCount = sectorDataService.processAllSectorMoneyFlow();
-            log.info("收盘资金流向采集完成，成功保存 {} 条数据", savedCount);
+            log.info("定时任务完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("收盘资金流向采集失败", e);
+            log.error("定时任务执行失败：收盘采集板块资金流向数据", e);
         }
     }
 
@@ -82,14 +82,14 @@ public class SectorMoneyFlowDataJob {
      */
     @Scheduled(cron = "0 35 15 * * MON-FRI")
     public void scheduledQuoteAfterMarketClose() {
-        log.info("收盘采集启动：开始采集当日板块行情数据");
+        log.info("定时任务启动：开始收盘采集当日板块行情数据");
 
         try {
             int savedCount = sectorDataService.processAllSectorQuote();
-            log.info("收盘行情采集完成，成功保存 {} 条数据", savedCount);
+            log.info("定时任务完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("收盘行情采集失败", e);
+            log.error("定时任务执行失败：收盘采集板块行情数据", e);
         }
     }
 
@@ -106,7 +106,7 @@ public class SectorMoneyFlowDataJob {
             log.info("手动触发完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("手动触发失败", e);
+            log.error("手动触发执行失败：采集所有板块资金流向数据", e);
         }
     }
 
@@ -121,7 +121,7 @@ public class SectorMoneyFlowDataJob {
             log.info("手动触发完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("手动触发失败", e);
+            log.error("手动触发执行失败：采集所有板块行情数据", e);
         }
     }
 
@@ -136,7 +136,7 @@ public class SectorMoneyFlowDataJob {
             log.info("手动触发完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("手动触发失败", e);
+            log.error("手动触发执行失败：采集所有板块数据", e);
         }
     }
 
@@ -146,14 +146,14 @@ public class SectorMoneyFlowDataJob {
      * @param sectorType 板块类型
      */
     public void processSectorMoneyFlow(SectorTypeEnum sectorType) {
-        log.info("手动触发：开始采集{}资金流向数据", sectorType.getDesc());
+        log.info("手动触发：开始采集 [{}] 资金流向数据", sectorType.getDesc());
 
         try {
             int savedCount = sectorDataService.processSectorMoneyFlow(sectorType);
             log.info("手动触发完成，成功保存 {} 条数据", savedCount);
 
         } catch (Exception e) {
-            log.error("手动触发失败", e);
+            log.error("手动触发执行失败：采集 [{}] 资金流向数据", sectorType.getDesc(), e);
         }
     }
 }
