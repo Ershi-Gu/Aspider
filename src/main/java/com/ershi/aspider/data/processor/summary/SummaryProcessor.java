@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -50,100 +51,135 @@ public class SummaryProcessor {
     }
 
     /**
-     * 批量处理摘要
+     * 批量处理摘要（两阶段：先预扫描统计，再统一执行 LLM）
      */
     public void processBatch(List<FinancialArticle> articles) {
         log.info("开始摘要处理，共 {} 条", articles.size());
 
-        AtomicInteger llmCount = new AtomicInteger(0);
-        int llmLimit = config.getLlm().getMaxPerBatch();
-
-        int highQuality = 0;
-        int llmGenerated = 0;
-        int extracted = 0;
-
+        // 预扫描，评估所有文章并制定处理计划
+        List<ArticleProcessPlan> plans = new ArrayList<>(articles.size());
         for (FinancialArticle article : articles) {
-            ProcessResult result = process(article, llmCount, llmLimit);
-            switch (result) {
-                case HIGH_QUALITY -> highQuality++;
-                case LLM_GENERATED -> llmGenerated++;
-                case EXTRACTED -> extracted++;
-            }
+            plans.add(createProcessPlan(article));
         }
 
-        log.info("摘要处理完成：高质量保留={}, LLM生成={}, 提取/截断={}", highQuality, llmGenerated, extracted);
+        // 统计各类处理计划数量
+        long highQualityCount = plans.stream().filter(p -> p.action == PlannedAction.KEEP).count();
+        long needLlmCount = plans.stream().filter(p -> p.action == PlannedAction.LLM).count();
+        long extractedCount = plans.stream().filter(p -> p.action == PlannedAction.EXTRACTED).count();
+        long truncateCount = plans.stream().filter(p -> p.action == PlannedAction.TRUNCATE).count();
+
+        int llmLimit = config.getLlm().getMaxPerBatch();
+        long actualLlmCount = Math.min(needLlmCount, llmLimit);
+        long exceedLimitCount = needLlmCount - actualLlmCount;
+
+        log.info("摘要预扫描完成 | 高质量保留={}, 提取/截断={}, 需LLM生成={} (批次限额={}, 超额将截断={})",
+                highQualityCount, extractedCount + truncateCount, needLlmCount, llmLimit, Math.max(0, exceedLimitCount));
+
+        // 统一执行处理
+        AtomicInteger llmSuccessCount = new AtomicInteger(0);
+        int llmFailCount = 0;
+
+        log.info("开始LLM摘要生成阶段 | 待处理={}, 批次限额={}", needLlmCount, llmLimit);
+        for (ArticleProcessPlan plan : plans) {
+            if (plan.action == PlannedAction.LLM) {
+                // 统一执行 LLM 生成
+                if (llmSuccessCount.get() < llmLimit && regenerateWithLlm(plan.article, llmSuccessCount)) {
+                    // LLM 生成成功
+                } else {
+                    // LLM 失败或超限额，回退截断
+                    llmFailCount++;
+                    String fallback = TextTruncateUtil.smartTruncate(
+                        plan.article.getContent(), config.getExtraction().getTruncateLength());
+                    plan.article.setSummary(fallback);
+                    plan.article.setSummarySource(SummarySourceEnum.TRUNCATED);
+                    scoreIfEnabled(plan.article);
+                }
+            }
+            // KEEP / EXTRACTED / TRUNCATE 均已在预扫描阶段完成，无需额外处理
+        }
+
+        log.info("摘要处理完成 | 高质量保留={}, 提取/截断={}, LLM生成成功={}, LLM失败回退={}",
+                highQualityCount, extractedCount + truncateCount, llmSuccessCount.get(), llmFailCount);
     }
 
     /**
-     * 单篇文章摘要处理
+     * 预扫描：为单篇文章创建处理计划（不执行 LLM 调用）
      */
-    private ProcessResult process(FinancialArticle article, AtomicInteger llmCount, int llmLimit) {
+    private ArticleProcessPlan createProcessPlan(FinancialArticle article) {
         backupRawSummary(article);
 
         if (hasSummary(article)) {
-            return processExistingSummary(article, llmCount, llmLimit);
+            return planForExistingSummary(article);
         } else {
-            return processNoSummary(article, llmCount, llmLimit);
+            return planForNoSummary(article);
         }
     }
 
     /**
-     * 处理已有摘要的文章
+     * 为已有摘要的文章制定处理计划
      */
-    private ProcessResult processExistingSummary(FinancialArticle article, AtomicInteger llmCount, int llmLimit) {
+    private ArticleProcessPlan planForExistingSummary(FinancialArticle article) {
+        // 质量评估未启用，直接保留
         if (!config.getEnableQuality()) {
             article.setSummarySource(SummarySourceEnum.RAW);
-            return ProcessResult.HIGH_QUALITY;
+            return ArticleProcessPlan.of(article, PlannedAction.KEEP, "质量评估未启用");
         }
 
+        // 执行质量评分
         SummaryQualityResult quality = qualityScorer.score(article);
         article.setSummaryQualityScore(quality.getScore());
         article.setSummaryQualityLevel(quality.getLevel());
 
+        // 高质量直接保留
         if (quality.getLevel() == SummaryQualityLevel.HIGH) {
             article.setSummarySource(SummarySourceEnum.RAW);
-            return ProcessResult.HIGH_QUALITY;
+            return ArticleProcessPlan.of(article, PlannedAction.KEEP,
+                    String.format("高质量(score=%d)", quality.getScore()));
         }
 
+        // 判断是否需要 LLM
         boolean shouldUseLlm = quality.getLevel() == SummaryQualityLevel.LOW
             || (quality.getLevel() == SummaryQualityLevel.MEDIUM && isHighValue(article))
             || (config.getLlm().getForceHighValue() && isHighValue(article));
 
-        if (shouldUseLlm && llmCount.get() < llmLimit) {
-            if (regenerateWithLlm(article, llmCount)) {
-                return ProcessResult.LLM_GENERATED;
-            }
+        if (shouldUseLlm) {
+            String reason = String.format("%s(score=%d, reasons=%s)",
+                    quality.getLevel(), quality.getScore(), quality.getReasons());
+            return ArticleProcessPlan.of(article, PlannedAction.LLM, reason);
         }
 
+        // 中等质量但不触发 LLM，保留原始摘要
         article.setSummarySource(SummarySourceEnum.RAW);
-        return ProcessResult.HIGH_QUALITY;
+        return ArticleProcessPlan.of(article, PlannedAction.KEEP,
+                String.format("中等质量保留(score=%d)", quality.getScore()));
     }
 
     /**
-     * 处理无摘要的文章
+     * 为无摘要的文章制定处理计划
      */
-    private ProcessResult processNoSummary(FinancialArticle article, AtomicInteger llmCount, int llmLimit) {
+    private ArticleProcessPlan planForNoSummary(FinancialArticle article) {
         SummaryExtractionStrategy.ExtractionResult extraction = extractionStrategy.extract(article);
 
+        // 提取成功，直接使用提取结果
         if (extraction.hasSummary()) {
             article.setSummary(extraction.getSummary());
             article.setSummarySource(extraction.getSource());
             scoreIfEnabled(article);
-            return ProcessResult.EXTRACTED;
+            return ArticleProcessPlan.of(article, PlannedAction.EXTRACTED, "提取成功");
         }
 
-        if (extraction.isNeedLlm() && llmCount.get() < llmLimit) {
-            if (regenerateWithLlm(article, llmCount)) {
-                return ProcessResult.LLM_GENERATED;
-            }
+        // 需要 LLM（长文本无法直接提取）
+        if (extraction.isNeedLlm()) {
+            return ArticleProcessPlan.of(article, PlannedAction.LLM, "长文本无摘要需LLM生成");
         }
 
+        // 无法提取也不需要 LLM（如内容为空），截断兜底
         String fallback = TextTruncateUtil.smartTruncate(
             article.getContent(), config.getExtraction().getTruncateLength());
         article.setSummary(fallback);
         article.setSummarySource(SummarySourceEnum.TRUNCATED);
         scoreIfEnabled(article);
-        return ProcessResult.EXTRACTED;
+        return ArticleProcessPlan.of(article, PlannedAction.TRUNCATE, "截断兜底");
     }
 
     /**
@@ -206,9 +242,36 @@ public class SummaryProcessor {
         return article.getNewsType() == NewsTypeEnum.POLICY || article.getNewsType() == NewsTypeEnum.EVENT;
     }
 
-    private enum ProcessResult {
-        HIGH_QUALITY,
-        LLM_GENERATED,
-        EXTRACTED
+    /**
+     * 计划执行的动作类型
+     */
+    private enum PlannedAction {
+        /** 保留原始摘要（高质量或质量评估未启用） */
+        KEEP,
+        /** 已提取摘要 */
+        EXTRACTED,
+        /** 已截断作为摘要 */
+        TRUNCATE,
+        /** 需要 LLM 生成 */
+        LLM
+    }
+
+    /**
+     * 文章处理计划（预扫描阶段产出）
+     */
+    private static class ArticleProcessPlan {
+        final FinancialArticle article;
+        final PlannedAction action;
+        final String reason;
+
+        private ArticleProcessPlan(FinancialArticle article, PlannedAction action, String reason) {
+            this.article = article;
+            this.action = action;
+            this.reason = reason;
+        }
+
+        static ArticleProcessPlan of(FinancialArticle article, PlannedAction action, String reason) {
+            return new ArticleProcessPlan(article, action, reason);
+        }
     }
 }
